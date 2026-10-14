@@ -35,8 +35,11 @@ module Loader =
 ///   `input 'name' (file): `; each error keeps its Path and Location.
 /// - A merge conflict whose pointer has a recorded span in the right (else left) source's `Locations` gets
 ///   that span as `Location` and the message names the input, file and line:column. No span, no Location.
-/// - `Layer`/`ListsBy` build the merge policy (`Policy.defaults` plus list rules) and the layered
-///   inputs merge into the start document (`Obj []` with no `Layer`); conflicts become `merge.conflict` errors.
+/// - `ListsBy`/`Conflict`/`NullDeletes` build the merge policy (`Policy.defaults` plus the list rules,
+///   `ConflictMode` and null semantics) from ALL rules first, so their position relative to `Layer` does not
+///   matter. The layered inputs then merge into the start document (`Obj []` with no `Layer`); conflicts
+///   become `merge.conflict` errors (every conflict is reported, not just the first). `OnConflict.Resolve`
+///   is not expressible in a mapping (it holds a function); use `Doc.layers` with a custom `Policy`.
 /// - `Copy`/`Set`/`DefaultTo` create missing parent objects (`/metadata/name` works when `/metadata` is absent).
 /// - Other rules run top to bottom against the current document, each compiled to `Op`s and applied
 ///   atomically; the first failing rule stops the run (later rules would see a state that never existed).
@@ -72,9 +75,14 @@ module Fergi =
             |> List.distinct
             |> List.filter (fun n -> not (List.contains n declared))
             |> List.map (fun n -> err ErrorCodes.mappingInputUnknown ("Rule refers to undeclared input '" + n + "'"))
-        let layers = m.Rules |> List.filter (fun r -> match r with Rule.Layer _ -> true | _ -> false)
+        let atMostOne (name: string) (isIt: Rule -> bool) =
+            if (m.Rules |> List.filter isIt |> List.length) > 1 then
+                [ err ErrorCodes.mappingInvalid ("At most one " + name + " rule is allowed") ]
+            else []
         let multi =
-            if List.length layers > 1 then [ err ErrorCodes.mappingInvalid "At most one Layer rule is allowed" ] else []
+            atMostOne "Layer" (fun r -> match r with Rule.Layer _ -> true | _ -> false)
+            @ atMostOne "Conflict" (fun r -> match r with Rule.Conflict _ -> true | _ -> false)
+            @ atMostOne "NullDeletes" (fun r -> match r with Rule.NullDeletes _ -> true | _ -> false)
         missing @ unknownFiles @ unknownRules @ multi
 
     let private loadAll (m: Mapping) (f: Files) (load: Loader) : Result<Map<string, Parsed>, Error list> =
@@ -140,7 +148,7 @@ module Fergi =
 
     let private compile (inputs: Map<string, Node>) (rule: Rule) (doc: Node) : Result<Op list, Error> =
         match rule with
-        | Rule.Layer _ | Rule.ListsBy _ -> Ok []
+        | Rule.Layer _ | Rule.ListsBy _ | Rule.Conflict _ | Rule.NullDeletes _ -> Ok []
         | Rule.Copy((name, src), dest) ->
             match Doc.get src (Map.find name inputs) with
             | Error e -> Error { e with Message = "copy source '" + name + ":" + Selector.print src + "': " + e.Message }
@@ -174,6 +182,8 @@ module Fergi =
         match rule with
         | Rule.Layer _ -> "Layer"
         | Rule.ListsBy _ -> "ListsBy"
+        | Rule.Conflict _ -> "Conflict"
+        | Rule.NullDeletes _ -> "NullDeletes"
         | Rule.Copy _ -> "Copy"
         | Rule.Rename _ -> "Rename"
         | Rule.DefaultTo _ -> "DefaultTo"
@@ -208,6 +218,8 @@ module Fergi =
             (fun p r ->
                 match r with
                 | Rule.ListsBy(path, key) -> Policy.withListsBy path key p
+                | Rule.Conflict mode -> Policy.withConflict (ConflictMode.toOnConflict mode) p
+                | Rule.NullDeletes b -> Policy.withNullDeletes b p
                 | _ -> p)
             Policy.defaults
 

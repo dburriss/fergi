@@ -19,7 +19,7 @@ Compile order and content:
 | 2 | `Merge.fs` | the merge walk, provenance, `Merge.merge`/`Merge.layers` |
 | 1/2 | `Doc.fs` | `Doc.get/set/remove` (selector-addressed Fnode ops), `Doc.merge`, `Doc.layers` |
 | 1 | `Patch.fs` | `Op = Set | Remove | Append | Move | Test` (qualified access only), atomic `Patch.apply`, `Patch.diff` |
-| 4 | `Mapping.fs` | `Rule`, `Mapping`, `Files`, `SourcePath.parse` (`service:/name`), `Mapping.create/ensure/copy` |
+| 4 | `Mapping.fs` | `ConflictMode`, `Rule` (incl. `Conflict`, `NullDeletes`), `Mapping`, `Files`, `SourcePath.parse` (`service:/name`), `Mapping.create/ensure/copy` |
 | 4 | `Run.fs` | `Fergi.run`, `Fergi.plan` (`{ Output; Result; Ops; Provenance }`), `Fergi.runFiles` |
 
 Levels: 0 selectors, 1 `Doc` + `Patch`, 2 `Policy` + merge + layers + provenance, 4 (data form) `Mapping` + `run`/`plan`.
@@ -132,10 +132,14 @@ Facts established by the spike, each with a suggested note edit:
   `Where` key containing `=` does not round-trip; `Where` is resolved against a concrete document, so it
   cannot be used as an insert target (no item to address) and a `Where` on a missing parent is
   `selector.noMatch`.
-- **The `Rule` form cannot set `Policy.Conflict` or `NullDeletes`.** `run` always starts from `Policy.defaults`
-  plus `ListsBy` rules, so a mapping can never choose `Fail`, `FirstWins`, `Union`/`Append` or
-  `NullDeletes=false`. Propose `Rule.Policy of Policy`-style rules (follow-up [c]): either `Mapping.Policy: Policy`
-  or a `Rule.Policy of PolicySetting` (`Conflict`, `NullDeletes`, `Lists`).
+- **The `Rule` form could not set `Policy.Conflict` or `NullDeletes`: fixed for those two (follow-up [c]).**
+  Resolved as rules, not a `Mapping` field, to match `Layer`/`ListsBy` and keep `Mapping` plain data:
+  `Rule.Conflict of ConflictMode` (`LastWins | FirstWins | Fail`, a data-only subset of `OnConflict`;
+  `Resolve` takes a function and stays code-only, reachable only through `Doc.layers` with a custom `Policy`)
+  and `Rule.NullDeletes of bool`. `Run` folds them into the `Policy` together with `ListsBy`, from all rules,
+  before the layer merge, so their position relative to `Layer` is irrelevant. At most one `Conflict` and
+  one `NullDeletes` rule: extras are `mapping.invalid` (as for `Layer`). Still not expressible in a
+  mapping: a default list strategy (`Union`/`Append`) and per-path strategies other than `ByKey`.
 - **Provenance covers only the layer stage.** Rules after the merge (`Copy`, `Set`, `Rename`, ...) are not
   tracked, so `/metadata/name`, `/owner`, `/env` have no entry and the `Rename`d key keeps its old pointer.
   Provenance is also keyed by `Path.print`, so see friction item 8. State this in the note, or track
@@ -150,9 +154,14 @@ Facts established by the spike, each with a suggested note edit:
 - **`Copy` reads the named input, not the merged document**, so `Copy` after a `Layer` cannot see
   the overlaid value, and `Copy` ignores earlier rules. Specify this explicitly in the note (it is the
   consequence of `service:/name` meaning "that file").
-- **Mapping-level conflicts can only come from `ByKey`.** Because the policy is fixed to `LastWins`, the only
-  merge conflict a `run` can produce is a `ByKey` item that is not an object or lacks the key (these report
-  regardless of `OnConflict`; `Resolve` is not consulted for them).
+- **Mapping-level conflicts.** With the default `LastWins`, the only merge conflict a `run` can produce is a
+  `ByKey` item that is not an object or lacks the key (these report regardless of `OnConflict`). With
+  `Rule.Conflict ConflictMode.Fail`, `Fail` is reachable through a mapping: every differing scalar, type
+  mismatch or differing list is a `merge.conflict` error, ALL of them accumulate (not just the first), each
+  names the left/right layer, and with the loader's `Locations` each carries `file:line:col`
+  (e2e: `services/billing/strict-conflict.yaml` against the org layer). `FirstWins` keeps the earlier layer
+  (and its provenance). `NullDeletes=false` keeps `logLevel: null` as an explicit `Null`, attributed to the
+  layer that wrote it.
 - **The first failing rule stops the run** (later rules would see a state that never existed); only load
   errors, name validation and `Ensure` failures accumulate. Rule errors are prefixed `rule i (Kind):`.
 - **`Ensure` is a field of `Mapping`**, not a `Rule`, to keep `Rule` plain data (serialisable).
@@ -177,6 +186,11 @@ restricted documents. State this plainly in the note. What is true (tests in `Me
 | Identity | `Obj []` is a left and right identity (lawful policy; verified for shape-stable and general object documents). Note a non-object layer conflicts with the initial `Obj []` under `Fail` |
 | Idempotence | holds for the lawful policy (`merge a a = a`); `Union` is idempotent; `Append` is associative but **not** idempotent (`merge a a` doubles the list) |
 
+Strict mode is now reachable from a mapping (`Rule.Conflict ConflictMode.Fail`, `Rule.NullDeletes false`),
+so the caveats above are user-visible: a mapping that selects `Fail` or `NullDeletes=false` is a left fold
+whose result and reported conflicts depend on layer order and grouping, and the same conflict set is not
+guaranteed if layers are re-ordered or merged in a different grouping.
+
 Consequences for the design: `Doc.layers` is defined as a left fold from `Obj []`, which is the only
 well-defined meaning; do not describe it as "any grouping gives the same answer", and do not
 parallelise or re-associate merges (for example merging team and service first and caching it) unless the
@@ -196,8 +210,8 @@ existing xunit/FsCheck shims.
 | Fnode.Json.Tests | 11 | 11 | 11 |
 | Fnode.Yaml.Tests | 57 | 57 | 57 |
 | Fnode.Conformance | 47 | 30 | 30 (counting differs only, every case runs) |
-| Fergi.Tests | 159 | 159 | 159 |
-| Total | 619 | 602 | 602 |
+| Fergi.Tests | 180 | 180 | 180 |
+| Total | 640 | 623 | 623 |
 
 - **No change to `src/Fergi` was needed**: it compiled and passed unchanged under both targets.
 - **Test-side changes**: `ListStrategy.Append` is written qualified in 7 places (the Fable compiler does not use the
@@ -243,8 +257,8 @@ Queued follow-ups (in suggested order):
   `ListStrategy.Append` and `Op.Set` / `Rule.Set`, and the Fable expected-type workaround.
 - **[b] Loader signature change: done.** `string -> Result<Parsed, Error list>` so conflicts carry
   `file:line:col` and all parse errors survive (friction item 10).
-- **[c] `Rule.Policy` / `Mapping.Policy`** so a mapping can pick `Conflict`, `NullDeletes`, default list
-  strategy and `ListRules` (design finding in 3).
+- **[c] Policy rules in the mapping: done** for `Conflict` and `NullDeletes` (`Rule.Conflict`,
+  `Rule.NullDeletes`, `ConflictMode`). Not done: a default list strategy and non-`ByKey` list rules as data.
 - Fnode additions from section 2 marked P1 (`Path.*Segment`, `Node.setCreating`/`exists`/`tryFind`, NaN
   equality) before publishing 0.x, then Fergi drops its private copies (`Selector.unescape`, `setCreating`,
   `isAbsent`, `hasDuplicates`).

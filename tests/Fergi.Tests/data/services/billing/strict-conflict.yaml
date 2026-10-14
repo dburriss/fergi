@@ -1,0 +1,5 @@
+# Overrides scalars the org layer already set (replicas, logLevel): fine under LastWins,
+# a merge.conflict per scalar under `Rule.Conflict ConflictMode.Fail`.
+name: billing
+replicas: 5
+logLevel: debug

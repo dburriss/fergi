@@ -266,3 +266,38 @@ let ``Ensure failure returns ensure.failed and no document`` () =
         Assert.Equal<string list>([ ErrorCodes.ensureFailed ], codes es)
         Assert.Contains("replicas", es.[0].Message)
     | Ok _ -> failwith "expected ensure failure"
+
+// (9) policy rules in the mapping: strict conflict handling through real files
+let private strictMapping rules =
+    Mapping.create [ "org"; "service" ] (Rule.Layer [ "org"; "service" ] :: rules)
+
+let private strictFiles =
+    { Inputs = Map.ofList [ "org", "defaults/org.yaml"; "service", "services/billing/strict-conflict.yaml" ]
+      Output = "deploy/strict.yaml" }
+
+[<Fact>]
+let ``Rule.Conflict Fail reports every scalar conflict with sources and file:line:col`` () =
+    match Fergi.run (strictMapping [ Rule.Conflict ConflictMode.Fail ]) strictFiles load with
+    | Error es ->
+        Assert.Equal<string list>([ ErrorCodes.mergeConflict; ErrorCodes.mergeConflict ], codes es)
+        let replicas = es |> List.find (fun e -> e.Path = ptr "/replicas")
+        let logLevel = es |> List.find (fun e -> e.Path = ptr "/logLevel")
+        for e in [ replicas; logLevel ] do
+            Assert.Contains("left from 'org'", e.Message)
+            Assert.Contains("right from 'service'", e.Message)
+            Assert.Contains("input 'service' (services/billing/strict-conflict.yaml)", e.Message)
+        // the fixture has `replicas: 5` on line 4 and `logLevel: debug` on line 5
+        Assert.Equal(Some 4, replicas.Location |> Option.map (fun s -> s.Start.Line))
+        Assert.Equal(Some 5, logLevel.Location |> Option.map (fun s -> s.Start.Line))
+        Assert.Contains("at 4:", replicas.Message)
+        Assert.Contains("at 5:", logLevel.Message)
+    | Ok _ -> failwith "expected conflicts"
+
+[<Fact>]
+let ``the same inputs succeed with the default conflict mode and the service wins`` () =
+    match Fergi.run (strictMapping []) strictFiles load with
+    | Ok m ->
+        let out = Map.find strictFiles.Output m
+        Assert.Equal(Ok(Int 5L), Doc.get (sel "/replicas") out)
+        Assert.Equal(Ok(Str "debug"), Doc.get (sel "/logLevel") out)
+    | Error es -> failwithf "%A" es

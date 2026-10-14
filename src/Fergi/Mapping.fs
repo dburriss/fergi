@@ -2,6 +2,29 @@ namespace Fergi
 
 open Fnode
 
+/// How a mapping resolves two values that cannot be combined structurally (differing scalars, a type
+/// mismatch, differing lists under `Replace`). The data-only subset of `OnConflict`: `OnConflict.Resolve`
+/// takes a function, so it cannot live in plain data and stays code-only (set it with `Policy.withConflict`
+/// on `Doc.merge` / `Doc.layers`). Qualified access, because `Fail` etc. are also `OnConflict` cases.
+[<RequireQualifiedAccess>]
+type ConflictMode =
+    /// The later layer wins (the default).
+    | LastWins
+    /// The earlier layer wins.
+    | FirstWins
+    /// Every disagreement is reported as a `merge.conflict` error.
+    | Fail
+
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+module ConflictMode =
+
+    /// The `OnConflict` this mode stands for.
+    let toOnConflict (m: ConflictMode) : OnConflict =
+        match m with
+        | ConflictMode.LastWins -> OnConflict.LastWins
+        | ConflictMode.FirstWins -> OnConflict.FirstWins
+        | ConflictMode.Fail -> OnConflict.Fail
+
 /// One step of a mapping. Plain data (no functions), so it can be serialised or built by a
 /// future computation expression. Qualified access is required so `Rule.Set`/`Rule.Drop` never
 /// collide with `Op.Set`/`Op.Remove`.
@@ -12,6 +35,12 @@ type Rule =
     | Layer of inputs: string list
     /// Merge the list at this path by the string field `key` (adds to the merge `Policy`).
     | ListsBy of Path * key: string
+    /// Choose how conflicting values are reconciled in the layer merge (adds to the merge `Policy`;
+    /// default `ConflictMode.LastWins`). At most one `Conflict` rule per mapping.
+    | Conflict of ConflictMode
+    /// `true` (the default): a `null` in a later layer deletes the key. `false`: `null` is an ordinary
+    /// value and is kept. Adds to the merge `Policy`. At most one `NullDeletes` rule per mapping.
+    | NullDeletes of bool
     /// Copy the value at `input:/selector` (read from the NAMED input, not the merged document)
     /// to `dest` in the document being built. `path.notFound` if the source is absent.
     | Copy of from: (string * SelectorPath) * dest: SelectorPath

@@ -449,3 +449,111 @@ let ``SourcePath errors cleanly`` () =
 let ``Mapping.copy builds a Copy rule`` () =
     Assert.Equal(Ok(Rule.Copy(("service", sel "/name"), sel "/m/name")), Mapping.copy "service:/name" "/m/name" [ "service" ])
     Assert.True(Result.isError (Mapping.copy "/name" "/m" [ "service" ]))
+
+// ---- policy rules: Conflict and NullDeletes ----
+
+let private strictStore =
+    Map.ofList
+        [ "org.yaml", Obj [ "a", Int 1L; "b", Int 1L; "c", Int 1L; "gone", Str "x" ]
+          "svc.yaml", Obj [ "a", Int 2L; "b", Int 2L; "c", Int 1L; "gone", Null ] ]
+
+let private runStrict rules =
+    let load, _ = loader strictStore
+    Fergi.run (mk rules) files load
+
+let private strictOk rules =
+    match runStrict rules with
+    | Ok m -> Map.find "out.yaml" m
+    | Error es -> failwithf "unexpected errors: %A" (es |> List.map (fun e -> e.Code, e.Message))
+
+[<Fact>]
+let ``ConflictMode maps to the matching OnConflict`` () =
+    Assert.True(match ConflictMode.toOnConflict ConflictMode.LastWins with OnConflict.LastWins -> true | _ -> false)
+    Assert.True(match ConflictMode.toOnConflict ConflictMode.FirstWins with OnConflict.FirstWins -> true | _ -> false)
+    Assert.True(match ConflictMode.toOnConflict ConflictMode.Fail with OnConflict.Fail -> true | _ -> false)
+
+[<Fact>]
+let ``Conflict Fail through a mapping accumulates all conflicts with source names`` () =
+    match runStrict [ layerAll; Rule.Conflict ConflictMode.Fail ] with
+    | Error es ->
+        Assert.Equal<string list>([ ErrorCodes.mergeConflict; ErrorCodes.mergeConflict ], codes es)
+        Assert.Equal<Path list>([ ptr "/a"; ptr "/b" ], es |> List.map (fun e -> e.Path))
+        for e in es do
+            Assert.Contains("left from 'org'", e.Message)
+            Assert.Contains("right from 'service'", e.Message)
+    | Ok _ -> failwith "expected conflicts"
+
+[<Fact>]
+let ``the same inputs succeed by default and Conflict LastWins is the default`` () =
+    let expected = Obj [ "a", Int 2L; "b", Int 2L; "c", Int 1L ]
+    Assert.Equal(expected, strictOk [ layerAll ])
+    Assert.Equal(expected, strictOk [ layerAll; Rule.Conflict ConflictMode.LastWins ])
+
+[<Fact>]
+let ``Conflict FirstWins keeps the earlier layer and provenance names it`` () =
+    let load, _ = loader strictStore
+    match Fergi.plan (mk [ layerAll; Rule.Conflict ConflictMode.FirstWins ]) files load with
+    | Ok p ->
+        Assert.Equal(Obj [ "a", Int 1L; "b", Int 1L; "c", Int 1L ], p.Result)
+        Assert.Equal(Some "org", Map.tryFind "/a" p.Provenance)
+        Assert.Equal(Some "org", Map.tryFind "/b" p.Provenance)
+    | Error es -> failwithf "%A" es
+
+[<Fact>]
+let ``NullDeletes true deletes the key by default`` () =
+    let out = strictOk [ layerAll ]
+    Assert.True(Result.isError (Doc.get (sel "/gone") out))
+
+[<Fact>]
+let ``NullDeletes false keeps null as an explicit value attributed to its layer`` () =
+    let load, _ = loader strictStore
+    match Fergi.plan (mk [ layerAll; Rule.NullDeletes false ]) files load with
+    | Ok p ->
+        Assert.Equal(Ok Null, Doc.get (sel "/gone") p.Result)
+        Assert.Equal(Some "service", Map.tryFind "/gone" p.Provenance)
+    | Error es -> failwithf "%A" es
+
+[<Fact>]
+let ``NullDeletes true is the same as leaving the rule out`` () =
+    Assert.Equal(strictOk [ layerAll ], strictOk [ layerAll; Rule.NullDeletes true ])
+
+[<Fact>]
+let ``duplicate Conflict rules are mapping.invalid before any load`` () =
+    let load, calls = loader strictStore
+    let r = Fergi.run (mk [ layerAll; Rule.Conflict ConflictMode.Fail; Rule.Conflict ConflictMode.Fail ]) files load
+    Assert.Equal(0, calls.Value)
+    match r with
+    | Error es ->
+        Assert.Equal<string list>([ ErrorCodes.mappingInvalid ], codes es)
+        Assert.Contains("Conflict", es.[0].Message)
+    | Ok _ -> failwith "expected error"
+
+[<Fact>]
+let ``duplicate NullDeletes rules are mapping.invalid`` () =
+    match runStrict [ layerAll; Rule.NullDeletes true; Rule.NullDeletes false ] with
+    | Error es ->
+        Assert.Equal<string list>([ ErrorCodes.mappingInvalid ], codes es)
+        Assert.Contains("NullDeletes", es.[0].Message)
+    | Ok _ -> failwith "expected error"
+
+[<Fact>]
+let ``duplicate Layer, Conflict and NullDeletes rules are all reported`` () =
+    match runStrict [ Rule.Layer [ "org" ]; Rule.Layer [ "service" ]; Rule.Conflict ConflictMode.Fail; Rule.Conflict ConflictMode.LastWins; Rule.NullDeletes true; Rule.NullDeletes true ] with
+    | Error es -> Assert.Equal<string list>([ ErrorCodes.mappingInvalid; ErrorCodes.mappingInvalid; ErrorCodes.mappingInvalid ], codes es)
+    | Ok _ -> failwith "expected errors"
+
+[<Fact>]
+let ``policy rule order relative to Layer does not matter`` () =
+    let policyRules = [ Rule.Conflict ConflictMode.Fail; Rule.NullDeletes false; Rule.ListsBy(ptr "/ports", "name") ]
+    let before = runStrict (policyRules @ [ layerAll ])
+    let after = runStrict (layerAll :: policyRules)
+    let mixed = runStrict [ Rule.Conflict ConflictMode.Fail; layerAll; Rule.NullDeletes false ]
+    let msgs r = match r with Error es -> es |> List.map (fun e -> e.Code, e.Path, e.Message) | Ok _ -> failwith "expected conflicts"
+    Assert.Equal<(string * Path * string) list>(msgs before, msgs after)
+    Assert.Equal<(string * Path * string) list>(msgs before, msgs mixed)
+    // and for a succeeding policy the documents are identical too
+    let ok1 = strictOk [ Rule.NullDeletes false; Rule.Conflict ConflictMode.FirstWins; layerAll ]
+    let ok2 = strictOk [ layerAll; Rule.Conflict ConflictMode.FirstWins; Rule.NullDeletes false ]
+    Assert.Equal(ok1, ok2)
+    // NullDeletes=false makes the null an ordinary value, so FirstWins keeps the base "x" (not deleted)
+    Assert.Equal(Ok(Str "x"), Doc.get (sel "/gone") ok1)

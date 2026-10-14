@@ -8,7 +8,7 @@ Three layers produce one deploy config for the `billing` service (`deploy/billin
 | team | `teams/energy.yaml` (or `.json`) | `team`, `oncall`, a `metrics` port override, `labels.team`, `logLevel: null` |
 | service | `services/billing/service.yaml` | `name`, `replicas: 4`, ports (adds grpc, overrides http), `labels.tier`, `lastReviewed` |
 
-Variants for error paths: `zero-replicas.yaml` (Ensure fails), `bad-port.yaml` (ByKey conflict), `broken.yaml` (malformed YAML).
+Variants for error paths: `zero-replicas.yaml` (Ensure fails), `bad-port.yaml` (ByKey conflict), `broken.yaml` (malformed YAML), `strict-conflict.yaml` (overrides the org `replicas` and `logLevel`; a conflict each under `Rule.Conflict ConflictMode.Fail`, fine under the default).
 
 ## Rules to output
 
