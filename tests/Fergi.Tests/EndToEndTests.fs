@@ -38,26 +38,22 @@ let private detect (file: string) : Format option =
     [ Fnode.Yaml.format; Fnode.Json.format ]
     |> List.tryFind (fun f -> f.Extensions |> List.exists (fun e -> file.EndsWith e))
 
-/// Loader: path relative to the data dir -> Node. Parse errors pass through unchanged (first one;
-/// the loader shape returns a single Error), so Location survives.
-let private loadParsed (file: string) : Result<Parsed, Error> =
+/// Loader: path relative to the data dir -> Parsed. The adapter's `Result<Parsed, Error list>` passes
+/// straight through, so every parse error and every Location survives.
+let private loadParsed (file: string) : Result<Parsed, Error list> =
     match readFixture file with
-    | None -> Error(Error.create "load.fileNotFound" ("File not found: " + file) [])
+    | None -> Error [ Error.create "load.fileNotFound" ("File not found: " + file) [] ]
     | Some text ->
         match detect file with
-        | None -> Error(Error.create "load.unknownFormat" ("No format for: " + file) [])
-        | Some fmt ->
-            match fmt.Parse text with
-            | Ok p -> Ok p
-            | Error(e :: _) -> Error e
-            | Error [] -> Error(Error.create ErrorCode.parse "parse failed" [])
+        | None -> Error [ Error.create "load.unknownFormat" ("No format for: " + file) [] ]
+        | Some fmt -> fmt.Parse text
 
-let private load (file: string) : Result<Node, Error> = loadParsed file |> Result.map (fun p -> p.Node)
+let private load (file: string) : Result<Parsed, Error list> = loadParsed file
 
 let private mustLoad file =
     match load file with
-    | Ok n -> n
-    | Error e -> failwithf "%s: %s" file e.Message
+    | Ok p -> p.Node
+    | Error es -> failwithf "%s: %A" file (es |> List.map (fun e -> e.Message))
 
 let private inputs = [ "org"; "team"; "service" ]
 
@@ -135,7 +131,7 @@ let ``plan against the current output yields no ops and with a stale output yiel
     | Error es -> failwithf "%A" es
     // a stale current output: loader serves a modified copy for the output path only
     let stale = Doc.set (sel "/replicas") (Int 1L) expected |> Result.defaultValue expected
-    let staleLoad f = if f = billingFiles.Output then Ok stale else load f
+    let staleLoad f = if f = billingFiles.Output then Ok { Node = stale; Locations = Map.empty } else load f
     match Fergi.plan billingMapping billingFiles staleLoad with
     | Ok p ->
         Assert.Contains(Set(ptr "/replicas", Int 4L), p.Ops)
@@ -167,6 +163,32 @@ let ``a port item without name is a ByKey merge.conflict naming the sources`` ()
         let msg = es |> List.map (fun e -> e.Message) |> String.concat "\n"
         Assert.Contains("service", msg)
         Assert.Contains("/ports", msg)
+    | Ok _ -> failwith "expected conflict"
+
+[<Fact>]
+let ``the ByKey conflict names the file and points into it`` () =
+    let file = "services/billing/bad-port.yaml"
+    match runWith (filesWith "teams/energy.yaml" file) with
+    | Error es ->
+        let e = es |> List.find (fun x -> x.Code = ErrorCodes.mergeConflict)
+        Assert.Contains("input 'service' (" + file + ")", e.Message)
+        match e.Location with
+        | Some span ->
+            // `ports:` is on line 3 of bad-port.yaml; its value (the `- port` item) on line 4
+            Assert.True(span.Start.Line = 3 || span.Start.Line = 4)
+            Assert.Contains("at " + string span.Start.Line + ":" + string span.Start.Column, e.Message)
+        | None -> failwith "expected a Location"
+    | Ok _ -> failwith "expected conflict"
+
+[<Fact>]
+let ``a conflict at a pointer with no recorded span leaves Location None`` () =
+    // the loader drops all Locations, so the conflict cannot be tied to a position
+    let noSpans f = load f |> Result.map (fun p -> { p with Locations = Map.empty })
+    match Fergi.run billingMapping (filesWith "teams/energy.yaml" "services/billing/bad-port.yaml") noSpans with
+    | Error es ->
+        let e = es |> List.find (fun x -> x.Code = ErrorCodes.mergeConflict)
+        Assert.Equal(None, e.Location)
+        Assert.DoesNotContain("(services/billing/bad-port.yaml)", e.Message)
     | Ok _ -> failwith "expected conflict"
 
 [<Fact>]
@@ -219,6 +241,16 @@ let ``malformed YAML reports file and line through the whole pipeline`` () =
         | Some span -> Assert.True(span.Start.Line >= 1 && span.Start.Column >= 1)
         | None -> failwith "expected a Location"
     | other -> failwithf "unexpected %A" other
+
+[<Fact>]
+let ``two broken inputs accumulate errors with their own file prefixes`` () =
+    match runWith (filesWith "teams/nope.yaml" "services/billing/broken.yaml") with
+    | Error es ->
+        Assert.True(List.length es >= 2)
+        Assert.Contains("'team'", es.[0].Message)
+        Assert.Equal("load.fileNotFound", es.[0].Code)
+        Assert.True(es |> List.exists (fun e -> e.Code = ErrorCode.parse && e.Message.Contains "'service' (services/billing/broken.yaml)"))
+    | Ok _ -> failwith "expected errors"
 
 // (7)
 [<Fact>]

@@ -32,11 +32,10 @@ let store =
 /// In-memory loader that counts calls.
 let private loader (docs: Map<string, Node>) =
     let calls = ref 0
+    let inner = Loader.ofNodes docs
     let load (p: string) =
         calls.Value <- calls.Value + 1
-        match Map.tryFind p docs with
-        | Some n -> Ok n
-        | None -> Error(Error.create ErrorCode.pathNotFound ("no such file " + p) [])
+        inner p
     load, calls
 
 let files = { Inputs = Map.ofList [ "org", "org.yaml"; "service", "svc.yaml" ]; Output = "out.yaml" }
@@ -265,6 +264,64 @@ let ``every load error is reported`` () =
         Assert.Contains("'org'", es.[0].Message)
         Assert.Contains("'service'", es.[1].Message)
     | Ok _ -> failwith "expected error"
+
+[<Fact>]
+let ``every error of one file survives with the prefix, Path and Location`` () =
+    let span l c = { Start = { Line = l; Column = c }; End = { Line = l; Column = c + 1 } }
+    let e1 = { Error.create ErrorCode.parse "bad one" (ptr "/a") with Location = Some(span 1 2) }
+    let e2 = { Error.create ErrorCode.parse "bad two" (ptr "/b") with Location = Some(span 3 4) }
+    let ok = Loader.ofNodes store
+    let load f = if f = "svc.yaml" then Error [ e1; e2 ] else ok f
+    match Fergi.run (mk [ layerAll ]) files load with
+    | Error [ a; b ] ->
+        Assert.Equal("input 'service' (svc.yaml): bad one", a.Message)
+        Assert.Equal("input 'service' (svc.yaml): bad two", b.Message)
+        Assert.True((ptr "/a" = a.Path))
+        Assert.True((ptr "/b" = b.Path))
+        Assert.Equal(e1.Location, a.Location)
+        Assert.Equal(e2.Location, b.Location)
+    | other -> failwithf "unexpected %A" other
+
+[<Fact>]
+let ``errors of two failing inputs accumulate in input order`` () =
+    let e m = Error.create ErrorCode.parse m []
+    let load f = if f = "org.yaml" then Error [ e "o1"; e "o2" ] else Error [ e "s1" ]
+    match Fergi.run (mk [ layerAll ]) files load with
+    | Error es ->
+        Assert.Equal<string list>(
+            [ "input 'org' (org.yaml): o1"; "input 'org' (org.yaml): o2"; "input 'service' (svc.yaml): s1" ],
+            es |> List.map (fun x -> x.Message))
+    | Ok _ -> failwith "expected errors"
+
+[<Fact>]
+let ``plan treats any load error of the output as absent`` () =
+    let ok = Loader.ofNodes store
+    let load f = if f = "out.yaml" then Error [ Error.create ErrorCode.parse "x" []; Error.create ErrorCode.parse "y" [] ] else ok f
+    match Fergi.plan (mk [ layerAll ]) files load with
+    | Ok p -> Assert.Equal<Op list>([ Set([], p.Result) ], p.Ops)
+    | Error _ -> failwith "expected ok"
+
+[<Fact>]
+let ``a conflict with a recorded span carries it and names the file`` () =
+    let span = { Start = { Line = 12; Column = 3 }; End = { Line = 12; Column = 9 } }
+    let docs = Map.ofList [ "org.yaml", Obj [ "ports", Arr [ Obj [ "port", Int 1L ] ] ]; "svc.yaml", Obj [ "ports", Arr [ Obj [ "name", Str "a" ] ] ] ]
+    let inner = Loader.ofNodes docs
+    let load f =
+        inner f |> Result.map (fun p -> if f = "svc.yaml" then { p with Locations = Map.ofList [ "/ports", span ] } else p)
+    match Fergi.run (mk [ layerAll; Rule.ListsBy(ptr "/ports", "name") ]) files load with
+    | Error es ->
+        let e = es |> List.find (fun x -> x.Code = ErrorCodes.mergeConflict)
+        Assert.Equal(Some span, e.Location)
+        Assert.Contains("input 'service' (svc.yaml) at 12:3", e.Message)
+    | Ok _ -> failwith "expected conflict"
+
+[<Fact>]
+let ``a conflict without any span has no Location`` () =
+    let docs = Map.ofList [ "org.yaml", Obj [ "ports", Arr [ Obj [ "port", Int 1L ] ] ]; "svc.yaml", Obj [ "ports", Arr [ Obj [ "name", Str "a" ] ] ] ]
+    let load, _ = loader docs
+    match Fergi.run (mk [ layerAll; Rule.ListsBy(ptr "/ports", "name") ]) files load with
+    | Error es -> Assert.True(es |> List.forall (fun e -> e.Location = None))
+    | Ok _ -> failwith "expected conflict"
 
 [<Fact>]
 let ``all inputs load once each, including ones not layered`` () =
