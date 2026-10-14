@@ -64,3 +64,4 @@ out-python/
 __pycache__/
 node_modules/
 *.pyc
+*.generated.fs
