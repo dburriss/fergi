@@ -44,7 +44,13 @@ type JsonValue =
     | Record of (string * JsonValue)[]
 
     /// Default maximum container nesting depth accepted by the parser.
+#if FABLE_COMPILER_PYTHON
+    // CPython's default recursion limit is 1000 frames and the parser uses about two per level, so
+    // 512 levels would raise RecursionError instead of a JsonParseError.
+    static member DefaultMaxDepth = 200
+#else
     static member DefaultMaxDepth = 512
+#endif
 
     /// Parses strict RFC 8259 JSON. Raises `JsonParseException` (with line and column) on error.
     static member Parse(text: string, ?maxDepth: int) : JsonValue =
@@ -168,7 +174,12 @@ and [<Sealed>] internal JsonParser(s: string, maxDepth: int, track: bool) =
                             i <- i + 2
                             let lo = readHex4 ()
                             if lo >= 0xDC00 && lo <= 0xDFFF then
+#if FABLE_COMPILER_PYTHON
+                                // Python strings hold whole code points, not UTF-16 units: one `chr` for the pair.
+                                sb.Append(char (0x10000 + ((cu - 0xD800) <<< 10) + (lo - 0xDC00))) |> ignore
+#else
                                 sb.Append(char cu).Append(char lo) |> ignore
+#endif
                             else
                                 i <- escStart
                                 raise (err "high surrogate escape not followed by a low surrogate")
@@ -250,7 +261,8 @@ and [<Sealed>] internal JsonParser(s: string, maxDepth: int, track: bool) =
                 if ok then JsonValue.Integer v else asFloat ()
 
     let literal (word: string) (v: JsonValue) : JsonValue =
-        if String.CompareOrdinal(s, i, word, 0, word.Length) = 0 then
+        // (not String.CompareOrdinal(s, i, word, 0, len): Fable's overload does not honour the offsets)
+        if i + word.Length <= n && s.Substring(i, word.Length) = word then
             i <- i + word.Length
             v
         else
