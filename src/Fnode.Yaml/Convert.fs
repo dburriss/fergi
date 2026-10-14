@@ -19,9 +19,13 @@ let private number (d: decimal) : Node =
 
 let private pathOf (rev: Segment list) : Path = List.rev rev
 
-/// YamlValue -> Node. Fails with `type.mismatch` on a non-string mapping key, since Fnode
-/// objects have string keys only.
-let toNode (value: YamlValue) : Result<Node, Error> =
+let private timestampFallback (t: DateTimeOffset) : string = t.ToString("o", CultureInfo.InvariantCulture)
+
+/// YamlValue -> Node. `stamps` maps a node's RFC 6901 pointer (as printed by `Path.print`) to the
+/// original source text of a timestamp (`YamlParsed.TimestampText`); a Timestamp with no entry
+/// falls back to "o"-format text. Fails with `type.mismatch` on a non-string mapping key, since
+/// Fnode objects have string keys only.
+let toNodeWith (stamps: Map<string, string>) (value: YamlValue) : Result<Node, Error> =
     let rec go (rev: Segment list) (v: YamlValue) : Result<Node, Error> =
         match v with
         | YamlValue.Null -> Ok Null
@@ -29,7 +33,10 @@ let toNode (value: YamlValue) : Result<Node, Error> =
         | YamlValue.String s -> Ok(Str s)
         | YamlValue.Number d -> Ok(number d)
         | YamlValue.Float f -> Ok(Float f)
-        | YamlValue.Timestamp t -> Ok(Timestamp(t.ToString("o", CultureInfo.InvariantCulture)))
+        | YamlValue.Timestamp t ->
+            match Map.tryFind (Path.print (pathOf rev)) stamps with
+            | Some text -> Ok(Timestamp text)
+            | None -> Ok(Timestamp(timestampFallback t))
         | YamlValue.Sequence items ->
             let mutable acc = []
             let mutable err = None
@@ -66,7 +73,24 @@ let toNode (value: YamlValue) : Result<Node, Error> =
             | None -> Ok(Obj(List.rev acc))
     go [] value
 
-/// Node -> YamlValue. Total. Integral floats print as `1.0` and re-parse as a Float, not an Int.
+/// `toNodeWith` without timestamp source text: Timestamps render in "o" format.
+let toNode (value: YamlValue) : Result<Node, Error> = toNodeWith Map.empty value
+
+/// True when `text` is, verbatim, a plain YAML timestamp scalar (so it can be written unquoted
+/// and re-parses as a Timestamp).
+let isYamlTimestampText (text: string) : bool =
+    text.Length > 0
+    && text = text.Trim()
+    && text.IndexOfAny [| '\n'; '\r' |] < 0
+    && (try
+            match YamlValue.Parse text with
+            | YamlValue.Timestamp _ -> true
+            | _ -> false
+        with _ -> false)
+
+/// Node -> YamlValue. Total. A YamlValue Timestamp cannot carry source text, so a Timestamp node
+/// goes through DateTimeOffset here (a date-only text becomes midnight UTC in "o"-style output);
+/// `Fnode.Yaml.print` preserves the text itself. Integral floats print as `1.0` and re-parse as a Float, not an Int.
 let ofNode (node: Node) : YamlValue =
     let rec go (n: Node) : YamlValue =
         match n with

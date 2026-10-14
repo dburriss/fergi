@@ -166,24 +166,56 @@ let ``malformed input is a parse error with a message, not an exception`` (name:
                 Assert.Equal(ErrorCode.parse, e.Code)
                 Assert.False(System.String.IsNullOrWhiteSpace e.Message)
 
-[<Fact>]
-let ``JSON parse errors carry a 1-based Location`` () =
-    match Fnode.Json.format.Parse "{\n  \"a\": 1,\n  \"b\": }" with
-    | Ok _ -> failwith "expected error"
-    | Error es ->
-        let e = List.head es
-        Assert.Equal(ErrorCode.parse, e.Code)
-        match e.Location with
-        | None -> failwith "Location missing"
-        | Some s ->
-            Assert.Equal(3, s.Start.Line)
-            Assert.True(s.Start.Column >= 1)
+[<Theory; ClassData(typeof<FormatData>)>]
+let ``parse errors carry a 1-based Location`` (name: string) =
+    let f = byName name
+    for text in [ "{\n  \"a\": 1,\n  \"b\": [1,\n"; "[1, 2"; "{\"a\": [1, }" ] do
+        match f.Parse text with
+        | Ok p -> failwithf "[%s] expected error for %A, got %A" name text p.Node
+        | Error es ->
+            for e in es do
+                match e.Location with
+                | None -> failwithf "[%s] Location missing for %A" name text
+                | Some s ->
+                    Assert.True(s.Start.Line >= 1 && s.Start.Column >= 1, sprintf "[%s] %A" name s)
+                    Assert.True(s.End.Line >= 1 && s.End.Column >= 1, sprintf "[%s] %A" name s)
 
 [<Fact>]
-let ``JSON success carries Locations for the root`` () =
-    match Fnode.Json.format.Parse "{\"a\": 1}" with
-    | Ok p -> Assert.False(Map.isEmpty p.Locations)
-    | Error es -> failwithf "%A" es
+let ``JSON parse error location is on the offending line`` () =
+    match Fnode.Json.format.Parse "{\n  \"a\": 1,\n  \"b\": }" with
+    | Ok _ -> failwith "expected error"
+    | Error es -> Assert.Equal(3, es.Head.Location.Value.Start.Line)
+
+[<Theory; ClassData(typeof<FormatData>)>]
+let ``successful parses carry Locations with a root entry`` (name: string) =
+    let f = byName name
+    for text in [ "{\"a\": 1}"; "[1, 2]"; "{\"a\": {\"b\": [true, null]}}"; "\"x\""; "7" ] do
+        match f.Parse text with
+        | Ok p ->
+            Assert.False(Map.isEmpty p.Locations, sprintf "[%s] %A" name text)
+            Assert.True(Map.containsKey "" p.Locations, sprintf "[%s] root missing for %A" name text)
+            for KeyValue(_, s) in p.Locations do
+                Assert.True(s.Start.Line >= 1 && s.Start.Column >= 1)
+        | Error es -> failwithf "[%s] %A" name es
+
+[<Theory; ClassData(typeof<FormatData>)>]
+let ``Locations have an entry for every nested node`` (name: string) =
+    let f = byName name
+    match f.Parse """{"a": {"b": [10, 20]}, "c": "x"}""" with
+    | Ok p ->
+        for k in [ ""; "/a"; "/a/b"; "/a/b/0"; "/a/b/1"; "/c" ] do
+            Assert.True(Map.containsKey k p.Locations, sprintf "[%s] missing %s" name k)
+    | Error es -> failwithf "[%s] %A" name es
+
+[<Theory; ClassData(typeof<FormatData>)>]
+let ``Locations agree on a single-line flow document`` (name: string) =
+    let f = byName name
+    match f.Parse """{"a": [10, 20]}""" with
+    | Ok p ->
+        let s = p.Locations.["/a/0"]
+        Assert.Equal({ Line = 1; Column = 8 }, s.Start)
+        Assert.Equal({ Line = 1; Column = 10 }, s.End)
+    | Error es -> failwithf "[%s] %A" name es
 
 // --- Property over generated Nodes -----------------------------------------------------------
 

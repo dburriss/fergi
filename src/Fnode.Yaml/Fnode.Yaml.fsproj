@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
     <IsPackable>false</IsPackable>
-    <Description>YAML adapter for Fnode, built on FSharp.Data.YamlValue. No source positions yet.</Description>
+    <Description>YAML adapter for Fnode, built on FSharp.Data.YamlValue. Parse results carry source locations and original timestamp text.</Description>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Convert.fs" />

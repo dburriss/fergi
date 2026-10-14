@@ -25,9 +25,12 @@ let ``format metadata`` () =
     Assert.Equal<string list>([ ".yaml"; ".yml" ], Fnode.Yaml.format.Extensions)
 
 [<Fact>]
-let ``Locations are empty for successful parses (no positions yet)`` () =
+let ``Locations are filled for successful parses`` () =
     match Fnode.Yaml.format.Parse "a: 1" with
-    | Ok p -> Assert.True(Map.isEmpty p.Locations)
+    | Ok p ->
+        Assert.False(Map.isEmpty p.Locations)
+        Assert.True(Map.containsKey "" p.Locations)
+        Assert.True(Map.containsKey "/a" p.Locations)
     | Error es -> failwithf "%A" es
 
 // --- Scalars and structure -------------------------------------------------------------------
@@ -135,28 +138,72 @@ let ``unknown alias is a parse error`` () =
 // --- Timestamps ------------------------------------------------------------------------------
 
 [<Fact>]
-let ``timestamps become ISO text`` () =
+let ``timestamps keep their original source text`` () =
     match parseOk "a: 2026-10-14T10:00:00+02:00\nb: 2026-10-14T10:00:00.123Z" with
     | Obj [ "a", Timestamp a; "b", Timestamp b ] ->
-        Assert.Equal("2026-10-14T10:00:00.0000000+02:00", a)
-        Assert.Equal("2026-10-14T10:00:00.1230000+00:00", b)
+        Assert.Equal("2026-10-14T10:00:00+02:00", a)
+        Assert.Equal("2026-10-14T10:00:00.123Z", b)
     | other -> failwithf "%A" other
 
-/// Pins a known limitation: YamlValue holds DateTimeOffset, so the source text is gone and a
-/// date-only value is re-rendered as midnight UTC. Step 4 (a timestamp-text member in YamlValue)
-/// should change this test to expect "2026-10-14".
 [<Fact>]
-let ``known limitation: date-only timestamp is rendered as full o-format text`` () =
-    Assert.Equal(Timestamp "2026-10-14T00:00:00.0000000+00:00", parseOk "2026-10-14")
+let ``date-only timestamp keeps its text`` () =
+    Assert.Equal(Timestamp "2026-10-14", parseOk "2026-10-14")
 
 [<Fact>]
-let ``known limitation: zoneless date-time is read as UTC`` () =
-    Assert.Equal(Timestamp "2026-10-14T10:00:00.0000000+00:00", parseOk "2026-10-14 10:00:00")
+let ``zoneless date-time stays zoneless`` () =
+    Assert.Equal(Timestamp "2026-10-14T10:00:00", parseOk "2026-10-14T10:00:00")
+
+[<Fact>]
+let ``space-separated timestamps keep their text`` () =
+    Assert.Equal(Timestamp "2026-10-14 10:00:00", parseOk "2026-10-14 10:00:00")
+    Assert.Equal(Timestamp "2026-10-14 10:00:00 +01:00", parseOk "2026-10-14 10:00:00 +01:00")
+
+[<Fact>]
+let ``fractional seconds keep their text`` () =
+    Assert.Equal(Timestamp "2026-10-14T10:00:00.5Z", parseOk "2026-10-14T10:00:00.5Z")
+
+[<Fact>]
+let ``nested timestamps use their own pointer`` () =
+    match parseOk "a:\n  - 2026-10-14\n  - x: 2026-10-14 10:00:00\nb/c~d: 2026-01-02" with
+    | Obj [ "a", Arr [ Timestamp d; Obj [ "x", Timestamp t ] ]; "b/c~d", Timestamp k ] ->
+        Assert.Equal("2026-10-14", d)
+        Assert.Equal("2026-10-14 10:00:00", t)
+        Assert.Equal("2026-01-02", k)
+    | other -> failwithf "%A" other
+
+[<Fact>]
+let ``aliased timestamp reports the anchor text at every site`` () =
+    match parseOk "a: &t 2026-10-14\nb: *t" with
+    | Obj [ "a", Timestamp a; "b", Timestamp b ] ->
+        Assert.Equal("2026-10-14", a)
+        Assert.Equal("2026-10-14", b)
+    | other -> failwithf "%A" other
 
 [<Fact>]
 let ``timestamp text round trips`` () =
     let n = Obj [ "t", Timestamp "2026-10-14T10:00:00.0000000+02:00" ]
     Assert.Equal(n, parseOk (print n))
+
+[<Fact>]
+let ``timestamp text prints verbatim and unquoted and round trips`` () =
+    for text in
+        [ "2026-10-14"; "2026-10-14T10:00:00Z"; "2026-10-14T10:00:00+02:00"; "2026-10-14T10:00:00"
+          "2026-10-14 10:00:00"; "2026-10-14 10:00:00 +01:00"; "2026-10-14T10:00:00.5Z" ] do
+        let n = Obj [ "t", Timestamp text; "l", Arr [ Timestamp text ] ]
+        let printed = print n
+        Assert.Equal("t: " + text + "\nl:\n  - " + text + "\n", printed)
+        Assert.Equal(n, parseOk printed)
+    Assert.Equal("2026-10-14\n", print (Timestamp "2026-10-14"))
+    Assert.Equal(Timestamp "2026-10-14", parseOk (print (Timestamp "2026-10-14")))
+
+[<Fact>]
+let ``timestamp marker does not collide with user strings`` () =
+    let n = Arr [ Str "FnodeTimestampMarkerN0N"; Timestamp "2026-10-14" ]
+    Assert.Equal(n, parseOk (print n))
+
+[<Fact>]
+let ``non-YAML-shaped timestamp text is normalised through DateTimeOffset`` () =
+    Assert.Equal(Timestamp "2026-10-14T10:00:00.0000000+00:00", parseOk (print (Timestamp "10/14/2026 10:00:00 +00:00")))
 
 [<Fact>]
 let ``unparseable Timestamp text prints as a string and does not throw`` () =
@@ -364,3 +411,67 @@ let ``YAML: finite Float round trips as Float with identical bits`` (n: Node) =
         | Ok p -> (match p.Node with Float g -> sameBits f g | _ -> false)
         | Error _ -> false
     | _ -> true
+
+// --- Locations -------------------------------------------------------------------------------
+
+let private locs (text: string) : Map<string, Span> =
+    match Fnode.Yaml.format.Parse text with
+    | Ok p -> p.Locations
+    | Error es -> failwithf "expected Ok, got %A" es
+
+[<Fact>]
+let ``locations for nested nodes on multiple lines`` () =
+    let l = locs "a:\n  b:\n    - 10\n    - 20\n"
+    Assert.Equal({ Line = 1; Column = 1 }, l.[""].Start)
+    Assert.Equal(2, l.["/a"].Start.Line)
+    Assert.Equal(3, l.["/a/b"].Start.Line)
+    Assert.Equal(3, l.["/a/b/0"].Start.Line)
+    Assert.Equal({ Line = 3; Column = 7 }, l.["/a/b/0"].Start)
+    Assert.Equal({ Line = 3; Column = 9 }, l.["/a/b/0"].End)
+    Assert.Equal({ Line = 4; Column = 7 }, l.["/a/b/1"].Start)
+
+[<Fact>]
+let ``locations escape pointer keys`` () =
+    let l = locs "a/b: 1\nc~d: 2"
+    Assert.True(l.ContainsKey "/a~1b")
+    Assert.True(l.ContainsKey "/c~0d")
+
+[<Fact>]
+let ``alias sites are positioned at the alias token`` () =
+    let l = locs "a: &x\n  k: 1\nb: *x"
+    Assert.Equal({ Line = 3; Column = 4 }, l.["/b"].Start)
+    Assert.Equal({ Line = 3; Column = 4 }, l.["/b/k"].Start)
+
+[<Fact>]
+let ``merge-key entries are positioned at the merge value`` () =
+    let l = locs "base: &b\n  k: 1\nd:\n  <<: *b\n  z: 2"
+    Assert.Equal({ Line = 4; Column = 7 }, l.["/d/k"].Start)
+    Assert.Equal(5, l.["/d/z"].Start.Line)
+
+[<Fact>]
+let ``parse error carries line and column`` () =
+    match parseErr "a: 1\nb: [1, 2\n" with
+    | [ e ] ->
+        Assert.Equal(ErrorCode.parse, e.Code)
+        let loc = e.Location.Value
+        Assert.True(loc.Start.Line >= 2)
+        Assert.True(loc.Start.Column >= 1)
+        Assert.Equal(loc.Start, loc.End)
+        Assert.DoesNotContain("\n", e.Message)
+    | other -> failwithf "%A" other
+
+[<Fact>]
+let ``parseAll gives per-document locations relative to the stream`` () =
+    match Fnode.Yaml.parseAll "a: 1\n---\nb: 2\nc: 2026-10-14\n" with
+    | Ok [ d1; d2 ] ->
+        Assert.Equal(1, d1.Locations.["/a"].Start.Line)
+        Assert.Equal(3, d2.Locations.["/b"].Start.Line)
+        Assert.Equal(4, d2.Locations.["/c"].Start.Line)
+        Assert.Equal(Obj [ "b", Int 2L; "c", Timestamp "2026-10-14" ], d2.Node)
+    | other -> failwithf "%A" other
+
+[<Fact>]
+let ``parseAll error has a location`` () =
+    match Fnode.Yaml.parseAll "a: 1\n---\nb: [1" with
+    | Error [ e ] -> Assert.True(e.Location.IsSome)
+    | other -> failwithf "%A" other
