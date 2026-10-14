@@ -190,8 +190,12 @@ type PropertyAttribute() =
 
 /// Used by the generated runner.
 module Check =
-    /// Cap on cases per property in the Fable run (the .NET suite runs the attribute's MaxTest).
-    let mutable maxCases = 200
+    /// Cap on cases per property in the Fable run. Above the largest MaxTest in the suite (2000), so every
+    /// property runs its full attribute count; lower it to speed up a run.
+    let mutable maxCases = 3000
+
+    /// Total generated cases run so far (reported by Program).
+    let mutable casesRun = 0
 
     let private asBool (r: 'r) : bool =
         match box r with
@@ -209,6 +213,7 @@ module Check =
         for i in 0 .. cases - 1 do
             let size = 1 + (if cases > 1 then i * 99 / (cases - 1) else 0)
             let value = FsCheck.Gen.run size rng gen
+            casesRun <- casesRun + 1
             let ok =
                 try
                     asBool (prop value)

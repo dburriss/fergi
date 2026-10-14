@@ -28,6 +28,7 @@
     <Compile Include="../Fnode.Json.Tests/JsonFormatTests.fs" Link="Fnode.Json.Tests/JsonFormatTests.fs" />
     <Compile Include="../Fnode.Yaml.Tests/YamlFormatTests.fs" Link="Fnode.Yaml.Tests/YamlFormatTests.fs" />
     <Compile Include="../Fnode.Conformance/ConformanceTests.fs" Link="Fnode.Conformance/ConformanceTests.fs" />
+    <Compile Include="../Fnode.Conformance/NumericTests.fs" Link="Fnode.Conformance/NumericTests.fs" />
     <Compile Include="Runner.generated.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
