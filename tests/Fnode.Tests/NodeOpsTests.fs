@@ -146,3 +146,58 @@ let ``remove then tryGet is notFound`` (n: Node) =
             | Key _ -> (match Node.tryGet p n' with Error e -> e.Code = "path.notFound" | Ok _ -> false)
             | Index _ -> true
         | Error _ -> false)
+
+[<Fact>]
+let ``exists and tryFind distinguish absent from mismatch`` () =
+    Assert.True(Node.exists [ Key "items"; Index 0 ] doc)
+    Assert.False(Node.exists [ Key "nope" ] doc)
+    Assert.False(Node.exists [ Key "name"; Key "x" ] doc)
+    Assert.Equal(Ok(Some(Str "svc")), Node.tryFind [ Key "name" ] doc)
+    Assert.Equal(Ok None, Node.tryFind [ Key "nope" ] doc)
+    Assert.Equal(Ok None, Node.tryFind [ Key "items"; Index 9 ] doc)
+    Assert.Equal("type.mismatch", code (Node.tryFind [ Key "name"; Key "x" ] doc))
+
+[<Fact>]
+let ``setCreating makes missing key parents`` () =
+    Assert.Equal(
+        Ok(Obj [ "a", Obj [ "b", Obj [ "c", Int 1L ] ] ]),
+        Node.setCreating [ Key "a"; Key "b"; Key "c" ] (Int 1L) (Obj [])
+    )
+    // existing parents are kept and set still replaces in place
+    Assert.Equal(Ok(Obj [ "a", Obj [ "x", Int 0L; "b", Int 1L ] ]), Node.setCreating [ Key "a"; Key "b" ] (Int 1L) (Obj [ "a", Obj [ "x", Int 0L ] ]))
+    // plain set still fails
+    Assert.Equal("path.notFound", code (Node.set [ Key "a"; Key "b" ] (Int 1L) (Obj [])))
+    // a missing array item is never created, and mismatches still fail
+    Assert.Equal("path.notFound", code (Node.setCreating [ Key "a"; Index 0; Key "b" ] (Int 1L) (Obj [])))
+    Assert.Equal("path.notFound", code (Node.setCreating [ Key "items"; Index 5; Key "b" ] (Int 1L) doc))
+    Assert.Equal("type.mismatch", code (Node.setCreating [ Key "name"; Key "x" ] (Int 1L) doc))
+    Assert.Equal(Ok(Int 1L), Node.setCreating [] (Int 1L) doc)
+
+[<Fact>]
+let ``object key helpers`` () =
+    let kvs = [ "a", Int 1L; "b", Int 2L; "a", Int 3L ]
+    Assert.Equal(Some(Int 1L), Node.tryFindKey "a" kvs)
+    Assert.Equal(None, Node.tryFindKey "z" kvs)
+    Assert.Equal<(string * Node) list>([ "a", Int 9L; "b", Int 2L; "a", Int 3L ], Node.upsertKey "a" (Int 9L) kvs)
+    Assert.Equal<(string * Node) list>([ "a", Int 1L; "b", Int 2L; "a", Int 3L; "c", Null ], Node.upsertKey "c" Null kvs)
+    Assert.Equal<(string * Node) list>([ "b", Int 2L ], Node.removeKey "a" kvs)
+    Assert.True(Node.hasDuplicateKeys kvs)
+    Assert.False(Node.hasDuplicateKeys [ "a", Null; "b", Null ])
+    Assert.False(Node.hasDuplicateKeys [])
+
+[<Fact>]
+let ``equals is NaN safe`` () =
+    let n = Obj [ "x", Arr [ Float nan; Int 1L ] ]
+    Assert.True(Node.equals n n)
+    Assert.False(Node.equals (Float nan) (Float 1.0))
+    Assert.False(Node.equals (Int 1L) (Float 1.0))
+    Assert.False(Node.equals (Obj [ "a", Null; "b", Null ]) (Obj [ "b", Null; "a", Null ]))
+
+[<Fact>]
+let ``error context describe`` () =
+    let e =
+        Error.create "x" "boom" []
+        |> Error.withContext "input" "team"
+        |> Error.withContext "rule" "2"
+    Assert.Equal("rule 2: input team: boom", Error.describe e)
+    Assert.Equal("[boom]", (Error.mapMessage (fun m -> "[" + m + "]") (Error.create "x" "boom" [])).Message)

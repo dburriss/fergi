@@ -2,6 +2,10 @@ namespace Fnode
 
 /// The in-memory document tree shared by every format adapter.
 /// Objects are lists of pairs so key order is preserved.
+///
+/// - Adapters may produce duplicate keys in an `Obj` (YAML can). Lookups act on the first match;
+///   see `Node.hasDuplicateKeys`.
+/// - Structural `=` is not NaN-safe (`Float nan <> Float nan`). Compare documents with `Node.equals`.
 type Node =
     | Null
     | Bool of bool

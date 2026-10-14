@@ -66,3 +66,27 @@ let ``missing leading slash and bad escapes are path.invalid`` () =
         match Path.parse bad with
         | Error e -> Assert.Equal(ErrorCode.pathInvalid, e.Code)
         | Ok _ -> failwith ("expected error for " + bad)
+
+[<Fact>]
+let ``segment escape round trip`` () =
+    Assert.Equal("a~1b~0c", Path.escapeSegment "a/b~c")
+    Assert.Equal(Some "a/b~c", Path.unescapeSegment "a~1b~0c")
+    Assert.Equal(None, Path.unescapeSegment "a~2")
+    Assert.Equal(None, Path.unescapeSegment "a~")
+
+[<Fact>]
+let ``parseSegment key or index`` () =
+    Assert.Equal(Ok(Key "a/b"), Path.parseSegment "a~1b")
+    Assert.Equal(Ok(Index 3), Path.parseSegment "3")
+    Assert.Equal(Ok(Key "03"), Path.parseSegment "03")
+    match Path.parseSegment "~x" with
+    | Error e -> Assert.Equal("path.invalid", e.Code)
+    | Ok _ -> failwith "expected error"
+
+[<Fact>]
+let ``resolve turns numeric keys into indexes and back`` () =
+    let doc = Obj [ "a", Arr [ Str "x"; Str "y" ]; "o", Obj [ "0", Str "z" ] ]
+    Assert.True(([ Key "a"; Index 1 ] = Path.resolve doc [ Key "a"; Key "1" ]))
+    Assert.True(([ Key "o"; Key "0" ] = Path.resolve doc [ Key "o"; Index 0 ]))
+    // missing steps are left alone
+    Assert.True(([ Key "nope"; Key "1" ] = Path.resolve doc [ Key "nope"; Key "1" ]))

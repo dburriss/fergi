@@ -15,7 +15,10 @@ type Error =
     { Code: string
       Message: string
       Path: Path
-      Location: Span option }
+      Location: Span option
+      /// Structured context as ordered key/value pairs (for example `op`, `rule`, `input`, `file`).
+      /// Keys are defined by the producer; the core never interprets them.
+      Context: (string * string) list }
 
 /// Stable error codes.
 module ErrorCode =
@@ -30,4 +33,20 @@ module ErrorCode =
 
 module Error =
     let create (code: string) (message: string) (path: Path) : Error =
-        { Code = code; Message = message; Path = path; Location = None }
+        { Code = code; Message = message; Path = path; Location = None; Context = [] }
+
+    /// Add a context entry. Later entries are outer context: `describe` prints them first.
+    let withContext (key: string) (value: string) (e: Error) : Error =
+        { e with Context = e.Context @ [ (key, value) ] }
+
+    let mapMessage (f: string -> string) (e: Error) : Error = { e with Message = f e.Message }
+
+    /// Human-readable text: outermost context first, then the message,
+    /// for example `rule 2: input 'team': message`.
+    let describe (e: Error) : string =
+        let prefix =
+            e.Context
+            |> List.rev
+            |> List.map (fun (k, v) -> k + " " + v + ": ")
+            |> String.concat ""
+        prefix + e.Message

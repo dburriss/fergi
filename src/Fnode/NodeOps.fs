@@ -23,6 +23,45 @@ module Node =
     let private notFound (seg: Segment) trail =
         fail ErrorCode.pathNotFound ("Path not found at segment '" + Path.printSegment seg + "'") (seg :: trail)
 
+    /// First value stored under `key`. Duplicate keys are allowed in `Obj` (adapters may produce
+    /// them); every lookup in this module acts on the first match.
+    let tryFindKey (key: string) (kvs: (string * Node) list) : Node option =
+        List.tryFind (fun (k, _) -> k = key) kvs |> Option.map snd
+
+    /// Replace the first `key` in place, or append it. Order is kept.
+    let upsertKey (key: string) (value: Node) (kvs: (string * Node) list) : (string * Node) list =
+        if List.exists (fun (k, _) -> k = key) kvs then
+            let rec go pairs replaced =
+                match pairs with
+                | [] -> []
+                | (k, _) :: tl when k = key && not replaced -> (k, value) :: go tl true
+                | p :: tl -> p :: go tl replaced
+            go kvs false
+        else kvs @ [ (key, value) ]
+
+    /// Remove every `key`. Order of the rest is kept.
+    let removeKey (key: string) (kvs: (string * Node) list) : (string * Node) list =
+        List.filter (fun (k, _) -> k <> key) kvs
+
+    let hasDuplicateKeys (kvs: (string * Node) list) : bool =
+        let rec go (seen: Set<string>) pairs =
+            match pairs with
+            | [] -> false
+            | (k, _) :: tl -> Set.contains k seen || go (Set.add k seen) tl
+        go Set.empty kvs
+
+    /// Structural equality that is safe for NaN: two `Float` NaN leaves are equal. Otherwise the
+    /// same as `=` (no Int/Float coercion, object key order significant, `-0.0 = 0.0`).
+    /// Plain `=` on `Node` is not NaN-safe; use this for every document comparison.
+    let rec equals (a: Node) (b: Node) : bool =
+        match a, b with
+        | Float x, Float y -> x = y || (System.Double.IsNaN x && System.Double.IsNaN y)
+        | Arr xs, Arr ys -> List.length xs = List.length ys && List.forall2 equals xs ys
+        | Obj xs, Obj ys ->
+            List.length xs = List.length ys
+            && List.forall2 (fun (k1, v1) (k2, v2) -> k1 = k2 && equals v1 v2) xs ys
+        | _ -> a = b
+
     /// Fetch the node at `path`.
     let tryGet (path: Path) (node: Node) : Result<Node, Error> =
         let rec go (trail: Segment list) path node =
@@ -40,10 +79,24 @@ module Node =
                 | _ -> Error(mismatch seg node trail)
         go [] path node
 
+    /// Like `tryGet`, but absence is a value: `Ok None` when the path does not exist,
+    /// `Error` only for a type mismatch.
+    let tryFind (path: Path) (node: Node) : Result<Node option, Error> =
+        match tryGet path node with
+        | Ok n -> Ok(Some n)
+        | Error e when e.Code = ErrorCode.pathNotFound -> Ok None
+        | Error e -> Error e
+
+    /// True when `path` resolves to a node. A type mismatch counts as not existing.
+    let exists (path: Path) (node: Node) : bool =
+        match tryGet path node with
+        | Ok _ -> true
+        | Error _ -> false
+
     /// Set the node at `path`. Existing key/index: replaced in place. New key: appended.
     /// Index equal to the array length: appended. Missing intermediate nodes are `path.notFound`.
     /// The empty path replaces the whole document.
-    let set (path: Path) (value: Node) (node: Node) : Result<Node, Error> =
+    let private setWith (create: bool) (path: Path) (value: Node) (node: Node) : Result<Node, Error> =
         let rec go (trail: Segment list) path node =
             match path with
             | [] -> Ok value
@@ -69,6 +122,11 @@ module Node =
                                 | Ok tl' -> Ok(p :: tl')
                         rep kvs false |> Result.map Obj
                     elif last then Ok(Obj(kvs @ [ (k, value) ]))
+                    elif create && (match rest with Key _ :: _ -> true | _ -> false) then
+                        // missing intermediate key: build the whole chain below it
+                        match go (seg :: trail) rest (Obj []) with
+                        | Error e -> Error e
+                        | Ok c -> Ok(Obj(kvs @ [ (k, c) ]))
                     else Error(notFound seg trail)
                 | Index i, Arr items ->
                     let len = List.length items
@@ -80,6 +138,12 @@ module Node =
                     else Error(notFound seg trail)
                 | _ -> Error(mismatch seg node trail)
         go [] path node
+
+    let set (path: Path) (value: Node) (node: Node) : Result<Node, Error> = setWith false path value node
+
+    /// Like `set`, but a missing `Key` intermediate becomes `Obj []` (mkdir -p). A missing array
+    /// index parent is still `path.notFound`, and type mismatches still fail.
+    let setCreating (path: Path) (value: Node) (node: Node) : Result<Node, Error> = setWith true path value node
 
     /// Remove the node at `path`. Removing from an array shifts later items down.
     /// Removing the root is `path.invalid`.
