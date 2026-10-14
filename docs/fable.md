@@ -1,6 +1,6 @@
 # Fable support
 
-`Fnode`, `JsonValue`, `Fnode.Json` and `Fnode.Yaml` compile with [Fable](https://fable.io) 5.21.0 to
+`Fnode`, `JsonValue`, `Fnode.Json`, `Fnode.Yaml` and `Fergi` compile with [Fable](https://fable.io) 5.21.0 to
 JavaScript and Python from the same source (no separate files). The few differences are
 `#if FABLE_COMPILER` / `#if FABLE_COMPILER_PYTHON` branches; on .NET every branch is the BCL call
 the code always made, so .NET behaviour is unchanged. `Fnode.Yaml` builds on YamlValue
@@ -27,11 +27,12 @@ Prerequisites:
 
 xUnit and FsCheck cannot run under Fable, so `tests/Fnode.Fable` compiles the **same test files** as the
 .NET projects (`Fnode.Tests`, `JsonValue.Tests`, `Fnode.Json.Tests`, `Fnode.Yaml.Tests`,
-`Fnode.Conformance`) through two small shims, `XunitShim.fs` and `FsCheckShim.fs`.
+`Fnode.Conformance`, `Fergi.Tests`) through two small shims, `XunitShim.fs` and `FsCheckShim.fs`.
 `scripts/fable-gen-runner.fsx` (run by the script; `dotnet fsi`) reads those files and generates
 `Runner.generated.fs` (one entry per `[<Fact>]`, `[<Theory>]` data set or `[<Property>]`, calling the test
-function directly) and `JsonTestSuite.generated.fs` (the vendored JSON Test Suite embedded as strings).
-Both generated files are git-ignored. `tests/Fnode.Fable` is not in `Fergi.slnx`; the harness is also
+function directly), `JsonTestSuite.generated.fs` (the vendored JSON Test Suite embedded as strings) and
+`Fixtures.generated.fs` (the `tests/Fergi.Tests/data` YAML/JSON files as relative path -> text).
+All generated files are git-ignored. `tests/Fnode.Fable` is not in `Fergi.slnx`; the harness is also
 runnable on .NET (`dotnet run --project tests/Fnode.Fable`) as a check on the shims.
 
 When you add a test file to a .NET test project, add the same `<Compile Include=...>` line to
@@ -46,9 +47,30 @@ When you add a test file to a .NET test project, add the same `<Compile Include=
 | Fnode.Json.Tests | 11 | 11 | 11 |
 | Fnode.Yaml.Tests | 57 | 57 | 57 |
 | Fnode.Conformance | 47 | 30 | 30 |
+| Fergi.Tests | 159 | 159 | 159 |
 
 Conformance differs only in counting: a `[<Theory; ClassData(FormatData)>]` is one xUnit case per
 format (17 x 2) but one runner entry that loops over both formats. Every case runs.
+
+### Fergi under Fable
+
+`src/Fergi` compiled and passed unchanged (no `src/Fergi` edits were needed). Differences were in the tests
+and shims:
+
+- **FsCheck shim** gained `gen { }` (`GenBuilder`), `Gen.bind`, `Gen.map2` and `Gen.subListOf`; the runner
+  generator supports properties with three parameters.
+- **Fixtures**: `EndToEndTests.fs` reads files through `readFixture`, which uses the generated `Fixtures`
+  module under `FABLE_COMPILER` and the disk on .NET. Every fixture (YAML, JSON, the malformed file, the
+  error-path variants) goes through the same adapters, so the e2e results are the same on all targets.
+- **Union case clash**: Fable's compiler does not use the expected type to choose between `Op.Append` and
+  `ListStrategy.Append` (the .NET compiler does), so `Policy.withLists Append` failed to compile. Tests now
+  write `ListStrategy.Append`. A `[<RequireQualifiedAccess>]` on `Op`/`ListStrategy` would remove the problem.
+- `ParityTests.fs` pins the behaviours most likely to diverge: merged key order, int64 values above 2^53
+  and at the int64 limits through merge/layers and a YAML round trip, Timestamp text through merge and
+  print, the ordinal iteration order of the provenance `Map` (`/B` < `/a` < `/a/b` < `/a~0b` < `/z` < `/é`)
+  and the prefix pruning of provenance entries (`/a` must not drop `/ab`). All identical on .NET, JS, Python.
+- Nothing is excluded: all Fergi tests run on both targets. (The `Fnode.Conformance` count differs only as
+  described above.)
 
 ### What is not the same as on .NET
 
