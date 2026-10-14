@@ -84,8 +84,14 @@ let ``integers beyond int64 but within decimal become Float (known lossy)`` () =
 
 [<Fact>]
 let ``integers beyond decimal range give a parse error, not an exception`` () =
+#if FABLE_COMPILER
+    // Fable's decimal has no range limit (big.js / Python decimal): the integer parses, then Int's
+    // int64 range sends it to Float.
+    Assert.Equal(Float 123456789012345678901234567890.0, parseOk "123456789012345678901234567890")
+#else
     let es = parseErr "123456789012345678901234567890"
     Assert.Equal(ErrorCode.parse, (List.head es).Code)
+#endif
 
 [<Fact>]
 let ``int64 extremes round trip`` () =
@@ -203,7 +209,13 @@ let ``timestamp marker does not collide with user strings`` () =
 
 [<Fact>]
 let ``non-YAML-shaped timestamp text is normalised through DateTimeOffset`` () =
+#if FABLE_COMPILER
+    // Fable's DateTimeOffset.TryParse ignores culture and styles, so only YAML-shaped timestamps
+    // are normalised; anything else is kept as a string.
+    Assert.Equal(Str "10/14/2026 10:00:00 +00:00", parseOk (print (Timestamp "10/14/2026 10:00:00 +00:00")))
+#else
     Assert.Equal(Timestamp "2026-10-14T10:00:00.0000000+00:00", parseOk (print (Timestamp "10/14/2026 10:00:00 +00:00")))
+#endif
 
 [<Fact>]
 let ``unparseable Timestamp text prints as a string and does not throw`` () =
@@ -349,7 +361,7 @@ let private genFiniteFloat: Gen<float> =
     let bits =
         Arb.generate<int64>
         |> Gen.map System.BitConverter.Int64BitsToDouble
-        |> Gen.filter System.Double.IsFinite
+        |> Gen.filter (fun f -> not (System.Double.IsNaN f || System.Double.IsInfinity f))
     let special =
         Gen.elements
             [ 0.1; 1.0 / 3.0; 2.0 / 3.0; 1e-7; 5e-324; System.Double.Epsilon; System.Double.MaxValue

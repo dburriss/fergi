@@ -148,7 +148,7 @@ let ``unicode escapes parse the same`` (name: string) =
     let f = byName name
     Assert.Equal(Str "\u00e9\u4e16", parseOk f "\"\\u00e9\\u4e16\"")
 
-/// JSON writes non-BMP characters as a \u surrogate pair; both parsers decode it to one character.
+/// JSON writes non-BMP characters as a unicode-escape surrogate pair; both parsers decode it to one character.
 [<Theory; ClassData(typeof<FormatData>)>]
 let ``surrogate-pair escape parses the same`` (name: string) =
     let f = byName name
@@ -230,7 +230,7 @@ let private genFiniteFloat: Gen<float> =
     let bits =
         Arb.generate<int64>
         |> Gen.map System.BitConverter.Int64BitsToDouble
-        |> Gen.filter System.Double.IsFinite
+        |> Gen.filter (fun f -> not (System.Double.IsNaN f || System.Double.IsInfinity f))
     let special =
         Gen.elements
             [ 0.1; 1.0 / 3.0; 2.0 / 3.0; 1e-7; 5e-324; System.Double.Epsilon; System.Double.MaxValue
