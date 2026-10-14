@@ -100,8 +100,8 @@ before 0.x if cheap, **P3** can follow in a minor version.
    "array item 0"; `Path.parse "/0"` always yields `Key "0"` (resolution against the document decides).
    Fix: document it as a property of JSON Pointer, and offer `Path.resolve : Node -> Path -> Path` (turn
    numeric `Key` into `Index` when the node is an array) so consumers can normalise. **P2**.
-9. **Path equality in xunit assertions needs `Assert.True(a = b)`.** `Path` is a plain list alias and
-   `Assert.Equal(expected, actual)` on it resolves to the sequence overload ambiguity in places; tests use
+9. **Path equality in xunit assertions needs `Assert.True(a = b)`.** `Path` is a plain list alias, so
+   xunit's `Assert.Equal` can bind to a sequence overload; the tests use
    `Assert.True((ptr "/team" = c.Path))` or `Assert.Equal<Path>`. Fix: make `Path` a single-case record/struct
    (`Path of Segment list`) with its own equality and `ToString`, or document `Assert.Equal<Path>`. **P3**.
 10. **The loader shape `string -> Result<Node, Error>` loses information.** It keeps only the first adapter
@@ -170,7 +170,7 @@ restricted documents. State this plainly in the note. What is true (tests in `Me
 |---|---|
 | Associativity, lawful policy, shape-stable documents (each key keeps its type: scalar, nested document, list) | holds (property test) |
 | Associativity, lawful policy, arbitrary documents | **fails**: a key that flips type object -> scalar -> object. `a = {x:{p:1}}`, `b = {x:5}`, `c = {x:{q:2}}`: `(a b) c = {x:{q:2}}` but `a (b c) = {x:{p:1,q:2}}`, because a type mismatch replaces the base wholesale, so grouping decides whether `a`'s fields survive |
-| Associativity with `NullDeletes=true` | **fails**: `a = {x:{z:2}}`, `b = {x:{y:1}}`, `c = {x:null}`: `(a b) c = {}` but `a (b c) = {x:{z:2}}` (`b c` already deleted `x`, so `a`'s `x` survives; here `null` is not even a left identity of itself) |
+| Associativity with `NullDeletes=true` | **fails**: `a = {x:{z:2}}`, `b = {x:{y:1}}`, `c = {x:null}`: `(a b) c = {}` but `a (b c) = {x:{z:2}}` (`b c` already deleted `x`, so `a`'s `x` survives) |
 | `Fail` | **fails** in two ways: with `NullDeletes=true`, `a={x:1}`, `b={x:null}`, `c={x:2}`: `(a b) c = {x:2}` but `b c` is a conflict (a null value vs 2). With `NullDeletes=false`, three differing values succeed on neither grouping but the two groupings report different conflicts (`1 vs 2` against `2 vs 3`) |
 | Identity | `Obj []` is a left and right identity (lawful policy; verified for shape-stable and general object documents). Note a non-object layer conflicts with the initial `Obj []` under `Fail` |
 | Idempotence | holds for the lawful policy (`merge a a = a`); `Union` is idempotent; `Append` is associative but **not** idempotent (`merge a a` doubles the list) |
