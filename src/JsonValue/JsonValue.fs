@@ -391,9 +391,20 @@ and [<AbstractClass; Sealed>] internal JsonPrinter =
             "null"
         else
 #if FABLE_COMPILER
-            // Fable has no "R" format; its default ToString is already the shortest round-trip text.
+            // Fable has no "R" format. JS: the default ToString is already the shortest round-trip text.
+            // Python: `string` spells whole doubles out in full, which is right below 1e21 (as in JS) but would
+            // make 1e300 a 301-digit literal, so from 1e21 up use "G17" (Python's shortest repr, `1e+300`).
             // JS prints -0 as "0", so keep the sign explicitly.
-            let t = if f = 0.0 && 1.0 / f < 0.0 then "-0" else string f
+#if FABLE_COMPILER_PYTHON
+            let digits =
+                if Math.Abs f >= 1e21 || (f <> 0.0 && Math.Abs f < 1e-6) then
+                    f.ToString("G17", CultureInfo.InvariantCulture)
+                else
+                    string f
+#else
+            let digits = string f
+#endif
+            let t = if f = 0.0 && 1.0 / f < 0.0 then "-0" else digits
 #else
             let t = f.ToString("R", CultureInfo.InvariantCulture)
 #endif
