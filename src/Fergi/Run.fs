@@ -10,14 +10,31 @@ type Plan =
       Ops: Op list
       Provenance: Provenance }
 
-/// Runs a `Mapping` over loaded inputs. Pure: all IO is the injected loader (`string -> Result<Node, Error>`,
-/// given a `Files.Inputs` / `Files.Output` value). Nothing is written.
+/// The injected loader: file name (a `Files.Inputs` / `Files.Output` value) to parsed document with source
+/// locations, or every parse/load error. This is exactly what `Format.Parse` returns.
+type Loader = string -> Result<Parsed, Error list>
+
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+module Loader =
+
+    /// In-memory loader over named nodes (empty `Locations`). An unknown name is a `path.notFound` error.
+    let ofNodes (docs: Map<string, Node>) : Loader =
+        fun name ->
+            match Map.tryFind name docs with
+            | Some n -> Ok { Node = n; Locations = Map.empty }
+            | None -> Error [ Error.create ErrorCode.pathNotFound ("no such file " + name) [] ]
+
+/// Runs a `Mapping` over loaded inputs. Pure: all IO is the injected `Loader`
+/// (`string -> Result<Parsed, Error list>`, given a `Files.Inputs` / `Files.Output` value). Nothing is written.
 ///
 /// Semantics:
 /// - Names are validated before the loader is ever called: every `Mapping.Inputs` entry needs a
 ///   `Files` entry (`mapping.inputMissing`), every `Files` entry and every input named in a
 ///   rule must be declared (`mapping.inputUnknown`), at most one `Layer` rule (`mapping.invalid`).
-/// - All inputs load; every load error is reported (message prefixed with the input name).
+/// - All inputs load; every load error (all errors of every file) is reported, each message prefixed with
+///   `input 'name' (file): `; each error keeps its Path and Location.
+/// - A merge conflict whose pointer has a recorded span in the right (else left) source's `Locations` gets
+///   that span as `Location` and the message names the input, file and line:column. No span, no Location.
 /// - `Layer`/`ListsBy` build the merge policy (`Policy.defaults` plus list rules) and the layered
 ///   inputs merge into the start document (`Obj []` with no `Layer`); conflicts become `merge.conflict` errors.
 /// - `Copy`/`Set`/`DefaultTo` create missing parent objects (`/metadata/name` works when `/metadata` is absent).
@@ -60,18 +77,41 @@ module Fergi =
             if List.length layers > 1 then [ err ErrorCodes.mappingInvalid "At most one Layer rule is allowed" ] else []
         missing @ unknownFiles @ unknownRules @ multi
 
-    let private loadAll (m: Mapping) (f: Files) (load: string -> Result<Node, Error>) : Result<Map<string, Node>, Error list> =
+    let private loadAll (m: Mapping) (f: Files) (load: Loader) : Result<Map<string, Parsed>, Error list> =
         let results =
             m.Inputs
             |> List.map (fun n ->
                 let file = Map.find n f.Inputs
                 match load file with
-                | Ok node -> Ok(n, node)
-                | Error e -> Error { e with Message = "input '" + n + "' (" + file + "): " + e.Message })
-        let errors = results |> List.choose (fun r -> match r with Error e -> Some e | Ok _ -> None)
+                | Ok p -> Ok(n, p)
+                | Error es ->
+                    let prefix = "input '" + n + "' (" + file + "): "
+                    Error(es |> List.map (fun e -> { e with Message = prefix + e.Message })))
+        let errors = results |> List.collect (fun r -> match r with Error es -> es | Ok _ -> [])
         if List.isEmpty errors then
             Ok(results |> List.choose (fun r -> match r with Ok x -> Some x | Error _ -> None) |> Map.ofList)
         else Error errors
+
+    /// Tie a conflict to a source span: right source first, then left; only when that input recorded a span
+    /// for the conflict's pointer.
+    let private conflictError (f: Files) (inputs: Map<string, Parsed>) (c: Conflict) : Error =
+        let e = Conflict.toError c
+        let key = Path.print c.Path
+        let found =
+            [ c.RightSource; c.LeftSource ]
+            |> List.choose id
+            |> List.tryPick (fun n ->
+                match Map.tryFind n inputs with
+                | Some p -> Map.tryFind key p.Locations |> Option.map (fun span -> n, span)
+                | None -> None)
+        match found with
+        | Some(n, span) ->
+            let file = match Map.tryFind n f.Inputs with Some x -> x | None -> n
+            { e with
+                Message =
+                    e.Message + " - input '" + n + "' (" + file + ") at " + string span.Start.Line + ":" + string span.Start.Column
+                Location = Some span }
+        | None -> e
 
     let private isAbsent (e: Error) = e.Code = ErrorCode.pathNotFound || e.Code = ErrorCodes.selectorNoMatch
 
@@ -171,18 +211,19 @@ module Fergi =
                 | _ -> p)
             Policy.defaults
 
-    let private execute (m: Mapping) (f: Files) (load: string -> Result<Node, Error>) : Result<Node * Provenance, Error list> =
+    let private execute (m: Mapping) (f: Files) (load: Loader) : Result<Node * Provenance, Error list> =
         match validate m f with
         | _ :: _ as errs -> Error errs
         | [] ->
             match loadAll m f load with
             | Error errs -> Error errs
-            | Ok inputs ->
+            | Ok parsed ->
+                let inputs = parsed |> Map.map (fun _ p -> p.Node)
                 let layerNames =
                     m.Rules |> List.tryPick (fun r -> match r with Rule.Layer ns -> Some ns | _ -> None) |> Option.defaultValue []
                 let layered = layerNames |> List.map (fun n -> n, Map.find n inputs)
                 match Doc.layers (policyOf m.Rules) layered with
-                | Error cs -> Error(List.map Conflict.toError cs)
+                | Error cs -> Error(List.map (conflictError f parsed) cs)
                 | Ok(start, prov) ->
                     match runRules inputs m.Rules start with
                     | Error errs -> Error errs
@@ -192,18 +233,18 @@ module Fergi =
                         | errs -> Error errs
 
     /// Run the mapping. Ok: `Map.ofList [ files.Output, document ]`. Any error: nothing is returned.
-    let run (m: Mapping) (f: Files) (load: string -> Result<Node, Error>) : Result<Map<string, Node>, Error list> =
+    let run (m: Mapping) (f: Files) (load: Loader) : Result<Map<string, Node>, Error list> =
         execute m f load |> Result.map (fun (result, _) -> Map.ofList [ f.Output, result ])
 
     /// Dry run: the same result plus `Patch.diff current result`. `current` is the output loaded
     /// via the loader; if loading it fails for any reason (absent file, parse error) it is treated
     /// as absent and diffed from `Null`.
-    let plan (m: Mapping) (f: Files) (load: string -> Result<Node, Error>) : Result<Plan, Error list> =
+    let plan (m: Mapping) (f: Files) (load: Loader) : Result<Plan, Error list> =
         execute m f load
         |> Result.map (fun (result, prov) ->
             let current =
                 match load f.Output with
-                | Ok n -> n
+                | Ok p -> p.Node
                 | Error _ -> Null
             { Output = f.Output
               Result = result
@@ -215,6 +256,6 @@ module Fergi =
         (inputs: (string * string) list)
         (output: string)
         (rules: Rule list)
-        (load: string -> Result<Node, Error>)
+        (load: Loader)
         : Result<Map<string, Node>, Error list> =
         run (Mapping.create (List.map fst inputs) rules) { Inputs = Map.ofList inputs; Output = output } load
