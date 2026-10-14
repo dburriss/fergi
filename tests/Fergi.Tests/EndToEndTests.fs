@@ -2,12 +2,26 @@
 /// real Fnode.Yaml / Fnode.Json adapters. The loader below is test-side IO; core has none.
 module EndToEndTests
 
+#if !FABLE_COMPILER
 open System.IO
+#endif
 open Xunit
 open Fnode
 open Fergi
 
+#if !FABLE_COMPILER
 let private dataDir = Path.Combine(System.AppContext.BaseDirectory, "data")
+#endif
+
+/// Fixture text by relative path: from disk on .NET, from the embedded `Fixtures` module (generated
+/// by scripts/fable-gen-runner.fsx) under Fable, which has no file system access.
+let private readFixture (file: string) : string option =
+#if FABLE_COMPILER
+    Fixtures.tryFind file
+#else
+    let full = Path.Combine(dataDir, file)
+    if File.Exists full then Some(File.ReadAllText full) else None
+#endif
 
 let private sel s =
     match Selector.parse s with
@@ -27,14 +41,13 @@ let private detect (file: string) : Format option =
 /// Loader: path relative to the data dir -> Node. Parse errors pass through unchanged (first one;
 /// the loader shape returns a single Error), so Location survives.
 let private loadParsed (file: string) : Result<Parsed, Error> =
-    let full = Path.Combine(dataDir, file)
-    if not (File.Exists full) then
-        Error(Error.create "load.fileNotFound" ("File not found: " + file) [])
-    else
+    match readFixture file with
+    | None -> Error(Error.create "load.fileNotFound" ("File not found: " + file) [])
+    | Some text ->
         match detect file with
         | None -> Error(Error.create "load.unknownFormat" ("No format for: " + file) [])
         | Some fmt ->
-            match fmt.Parse(File.ReadAllText full) with
+            match fmt.Parse text with
             | Ok p -> Ok p
             | Error(e :: _) -> Error e
             | Error [] -> Error(Error.create ErrorCode.parse "parse failed" [])

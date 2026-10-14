@@ -154,7 +154,7 @@ let ``NullDeletes false keeps null as an ordinary value`` () =
 [<Fact>]
 let ``Null outside object keys is ordinary even with NullDeletes`` () =
     Assert.Equal(Null, ok (merge p (Int 1L) Null))
-    Assert.Equal(Arr [ Int 1L; Null ], ok (merge (Policy.withLists Append p) (Arr [ Int 1L ]) (Arr [ Null ])))
+    Assert.Equal(Arr [ Int 1L; Null ], ok (merge (Policy.withLists ListStrategy.Append p) (Arr [ Int 1L ]) (Arr [ Null ])))
 
 // lists
 
@@ -174,7 +174,7 @@ let ``Replace honours FirstWins and Fail`` () =
 
 [<Fact>]
 let ``Append concatenates including duplicates`` () =
-    let pol = Policy.withLists Append p
+    let pol = Policy.withLists ListStrategy.Append p
     Assert.Equal(listDoc (ints [ 1; 2; 2; 3 ]), ok (merge pol (listDoc (ints [ 1; 2 ])) (listDoc (ints [ 2; 3 ]))))
     Assert.Equal(listDoc (ints [ 1; 1 ]), ok (merge pol (listDoc (ints [ 1 ])) (listDoc (ints [ 1 ]))))
 
@@ -233,7 +233,7 @@ let ``ByKey duplicate overlay keys merge into one item`` () =
 
 [<Fact>]
 let ``ListRules match the exact list path and override Lists`` () =
-    let pol = p |> Policy.withLists Append |> Policy.withListsBy [ Key "ports" ] "name"
+    let pol = p |> Policy.withLists ListStrategy.Append |> Policy.withListsBy [ Key "ports" ] "name"
     let a = Obj [ "ports", Arr [ item "http" 1L ]; "tags", ints [ 1 ]; "svc", Obj [ "ports", ints [ 1 ] ] ]
     let b = Obj [ "ports", Arr [ item "http" 2L ]; "tags", ints [ 2 ]; "svc", Obj [ "ports", ints [ 2 ] ] ]
     let expected =
@@ -243,7 +243,7 @@ let ``ListRules match the exact list path and override Lists`` () =
 [<Fact>]
 let ``ListRules on a nested path and withListRule replaces an earlier rule`` () =
     let path = [ Key "svc"; Key "ports" ]
-    let pol = p |> Policy.withListRule path Append |> Policy.withListRule path Union
+    let pol = p |> Policy.withListRule path ListStrategy.Append |> Policy.withListRule path Union
     Assert.Equal<(Path * ListStrategy) list>([ path, Union ], pol.ListRules)
     let a = Obj [ "svc", Obj [ "ports", ints [ 1 ] ] ]
     let b = Obj [ "svc", Obj [ "ports", ints [ 1; 2 ] ] ]
@@ -251,7 +251,7 @@ let ``ListRules on a nested path and withListRule replaces an earlier rule`` () 
 
 [<Fact>]
 let ``ByKey rule applies to lists inside ByKey items`` () =
-    let pol = p |> Policy.withLists Append |> Policy.withListsBy [ Key "l" ] "name" |> Policy.withListsBy [ Key "l"; Index 0; Key "sub" ] "id"
+    let pol = p |> Policy.withLists ListStrategy.Append |> Policy.withListsBy [ Key "l" ] "name" |> Policy.withListsBy [ Key "l"; Index 0; Key "sub" ] "id"
     let mk v = listDoc (Arr [ Obj [ "name", Str "a"; "sub", Arr [ Obj [ "id", Str "i"; "v", Int v ] ] ] ])
     Assert.Equal(mk 2L, ok (merge pol (mk 1L) (mk 2L)))
 

@@ -81,7 +81,7 @@ let ``provenance pointers are escaped like Path.print`` () =
 
 [<Fact>]
 let ``append lists: items keep their own source`` () =
-    let pol = Policy.withLists Append p
+    let pol = Policy.withLists ListStrategy.Append p
     let _, prov = okL (layers pol [ "a", Obj [ "l", Arr [ Int 1L ] ]; "b", Obj [ "l", Arr [ Int 2L; Int 3L ] ] ])
     Assert.Equal(Some "a", Map.tryFind "/l/0" prov)
     Assert.Equal(Some "b", Map.tryFind "/l/1" prov)

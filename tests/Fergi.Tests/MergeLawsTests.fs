@@ -148,7 +148,7 @@ let ``Fail is associative on success but the two groupings report different conf
 [<Fact>]
 let ``Append is associative but not idempotent, Union is idempotent`` () =
     let a, b, c = Obj [ "l", Arr [ Int 1L ] ], Obj [ "l", Arr [ Int 2L ] ], Obj [ "l", Arr [ Int 3L ] ]
-    let ap = lawful |> Policy.withLists Append
+    let ap = lawful |> Policy.withLists ListStrategy.Append
     let left = m ap a b |> Result.bind (fun ab -> m ap ab c)
     let right = m ap b c |> Result.bind (fun bc -> m ap a bc)
     Assert.Equal(left, right)

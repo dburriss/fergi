@@ -15,6 +15,7 @@
     <Compile Include="MergeLawsTests.fs" />
     <Compile Include="MappingTests.fs" />
     <Compile Include="EndToEndTests.fs" />
+    <Compile Include="ParityTests.fs" />
   </ItemGroup>
 
   <ItemGroup>
