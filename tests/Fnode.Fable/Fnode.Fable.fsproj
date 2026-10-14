@@ -18,6 +18,7 @@
     <Compile Include="FsCheckShim.fs" />
     <Compile Include="JsonTestSuite.generated.fs" />
     <Compile Include="JsonTestSuiteFable.fs" />
+    <Compile Include="Fixtures.generated.fs" />
     <Compile Include="../Fnode.Tests/PathTests.fs" Link="Fnode.Tests/PathTests.fs" />
     <Compile Include="../Fnode.Tests/NodeOpsTests.fs" Link="Fnode.Tests/NodeOpsTests.fs" />
     <Compile Include="../JsonValue.Tests/ParserTests.fs" Link="JsonValue.Tests/ParserTests.fs" />
@@ -29,6 +30,15 @@
     <Compile Include="../Fnode.Yaml.Tests/YamlFormatTests.fs" Link="Fnode.Yaml.Tests/YamlFormatTests.fs" />
     <Compile Include="../Fnode.Conformance/ConformanceTests.fs" Link="Fnode.Conformance/ConformanceTests.fs" />
     <Compile Include="../Fnode.Conformance/NumericTests.fs" Link="Fnode.Conformance/NumericTests.fs" />
+    <Compile Include="../Fergi.Tests/SelectorTests.fs" Link="Fergi.Tests/SelectorTests.fs" />
+    <Compile Include="../Fergi.Tests/DocTests.fs" Link="Fergi.Tests/DocTests.fs" />
+    <Compile Include="../Fergi.Tests/PatchTests.fs" Link="Fergi.Tests/PatchTests.fs" />
+    <Compile Include="../Fergi.Tests/MergeTests.fs" Link="Fergi.Tests/MergeTests.fs" />
+    <Compile Include="../Fergi.Tests/LayersTests.fs" Link="Fergi.Tests/LayersTests.fs" />
+    <Compile Include="../Fergi.Tests/MergeLawsTests.fs" Link="Fergi.Tests/MergeLawsTests.fs" />
+    <Compile Include="../Fergi.Tests/MappingTests.fs" Link="Fergi.Tests/MappingTests.fs" />
+    <Compile Include="../Fergi.Tests/EndToEndTests.fs" Link="Fergi.Tests/EndToEndTests.fs" />
+    <Compile Include="../Fergi.Tests/ParityTests.fs" Link="Fergi.Tests/ParityTests.fs" />
     <Compile Include="Runner.generated.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
@@ -38,6 +48,7 @@
     <ProjectReference Include="../../src/JsonValue/JsonValue.fsproj" />
     <ProjectReference Include="../../src/Fnode.Json/Fnode.Json.fsproj" />
     <ProjectReference Include="../../src/Fnode.Yaml/Fnode.Yaml.fsproj" />
+    <ProjectReference Include="../../src/Fergi/Fergi.fsproj" />
   </ItemGroup>
 
 </Project>

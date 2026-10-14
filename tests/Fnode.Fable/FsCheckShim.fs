@@ -45,6 +45,17 @@ module Gen =
 
     let map (f: 'a -> 'b) (g: Gen<'a>) : Gen<'b> = create (fun size rng -> f (run size rng g))
 
+    let bind (f: 'a -> Gen<'b>) (g: Gen<'a>) : Gen<'b> =
+        create (fun size rng ->
+            let x = run size rng g
+            run size rng (f x))
+
+    let map2 (f: 'a -> 'b -> 'c) (a: Gen<'a>) (b: Gen<'b>) : Gen<'c> =
+        create (fun size rng ->
+            let x = run size rng a
+            let y = run size rng b
+            f x y)
+
     let zip (a: Gen<'a>) (b: Gen<'b>) : Gen<'a * 'b> =
         create (fun size rng ->
             let x = run size rng a
@@ -99,8 +110,24 @@ module Gen =
                 items.Add(run size rng g)
             List.ofSeq items)
 
+    /// A random sub-sequence of `xs` (each element kept with probability 1/2, order preserved).
+    let subListOf (xs: seq<'a>) : Gen<'a list> =
+        let arr = Array.ofSeq xs
+        create (fun _ rng -> [ for x in arr do if rng.Between(0, 1) = 1 then yield x ])
+
     let listOf (g: Gen<'a>) : Gen<'a list> =
         create (fun size rng -> run size rng (listOfLength (rng.Between(0, size)) g))
+
+/// FsCheck's `gen { let! ... return ... }` builder.
+type GenBuilder() =
+    member _.Return(x: 'a) : Gen<'a> = Gen.constant x
+    member _.ReturnFrom(g: Gen<'a>) : Gen<'a> = g
+    member _.Bind(g: Gen<'a>, f: 'a -> Gen<'b>) : Gen<'b> = Gen.bind f g
+    member _.Zero() : Gen<unit> = Gen.constant ()
+
+[<AutoOpen>]
+module GenBuilderValue =
+    let gen = GenBuilder()
 
 /// Built-in generators for the primitive types the tests ask for with `Arb.generate<'T>`.
 module Primitives =
