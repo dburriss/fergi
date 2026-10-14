@@ -10,6 +10,9 @@
     <Compile Include="SelectorTests.fs" />
     <Compile Include="DocTests.fs" />
     <Compile Include="PatchTests.fs" />
+    <Compile Include="MergeTests.fs" />
+    <Compile Include="LayersTests.fs" />
+    <Compile Include="MergeLawsTests.fs" />
   </ItemGroup>
 
   <ItemGroup>

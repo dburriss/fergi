@@ -42,7 +42,7 @@ let ``failed op returns every error and the input is untouched`` () =
             [ Set([ Key "name" ], Str "x")
               Remove [ Key "nope" ]
               Set([ Key "meta"; Key "n" ], Int 2L)
-              Append([ Key "name" ], Null) ]
+              Op.Append([ Key "name" ], Null) ]
             doc
     Assert.Equal<string list>([ "path.notFound"; "type.mismatch" ], codes r)
     Assert.Equal(before, doc)
@@ -71,11 +71,11 @@ let ``failed Test aborts the whole patch`` () =
 
 [<Fact>]
 let ``Append adds to the end of an array`` () =
-    match Patch.apply [ Append([ Key "tags" ], Str "c") ] doc with
+    match Patch.apply [ Op.Append([ Key "tags" ], Str "c") ] doc with
     | Ok d -> Assert.Equal(Ok(Arr [ Str "a"; Str "b"; Str "c" ]), Node.tryGet [ Key "tags" ] d)
     | Error _ -> failwith "expected Ok"
-    Assert.Equal<string list>([ "type.mismatch" ], codes (Patch.apply [ Append([ Key "meta" ], Null) ] doc))
-    Assert.Equal<string list>([ "path.notFound" ], codes (Patch.apply [ Append([ Key "zzz" ], Null) ] doc))
+    Assert.Equal<string list>([ "type.mismatch" ], codes (Patch.apply [ Op.Append([ Key "meta" ], Null) ] doc))
+    Assert.Equal<string list>([ "path.notFound" ], codes (Patch.apply [ Op.Append([ Key "zzz" ], Null) ] doc))
 
 [<Fact>]
 let ``Move relocates a node`` () =
