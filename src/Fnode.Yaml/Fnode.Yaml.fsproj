@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
+    <IsPackable>false</IsPackable>
+    <Description>YAML adapter for Fnode, built on FSharp.Data.YamlValue. No source positions yet.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Convert.fs" />
+    <Compile Include="YamlFormat.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Project reference while YamlValue is changing (steps 4+); swap back to PackageReference once it stabilises. -->
+    <ProjectReference Include="../../../fsharp-yaml/src/FSharp.Data.YamlValue/FSharp.Data.YamlValue.fsproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Fnode/Fnode.fsproj" />
+  </ItemGroup>
+</Project>
