@@ -7,6 +7,7 @@
   <ItemGroup>
     <Compile Include="ErrorCodes.fs" />
     <Compile Include="Selector.fs" />
+    <Compile Include="Doc.fs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Fnode/Fnode.fsproj" />
