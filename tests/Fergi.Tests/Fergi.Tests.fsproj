@@ -13,6 +13,7 @@
     <Compile Include="MergeTests.fs" />
     <Compile Include="LayersTests.fs" />
     <Compile Include="MergeLawsTests.fs" />
+    <Compile Include="MappingTests.fs" />
   </ItemGroup>
 
   <ItemGroup>

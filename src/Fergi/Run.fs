@@ -20,6 +20,7 @@ type Plan =
 /// - All inputs load; every load error is reported (message prefixed with the input name).
 /// - `Layer`/`ListsBy` build the merge policy (`Policy.defaults` plus list rules) and the layered
 ///   inputs merge into the start document (`Obj []` with no `Layer`); conflicts become `merge.conflict` errors.
+/// - `Copy`/`Set`/`DefaultTo` create missing parent objects (`/metadata/name` works when `/metadata` is absent).
 /// - Other rules run top to bottom against the current document, each compiled to `Op`s and applied
 ///   atomically; the first failing rule stops the run (later rules would see a state that never existed).
 ///   Selectors resolve against the current document. `DefaultTo`/`Set` with a `Where` that matches
@@ -74,24 +75,51 @@ module Fergi =
 
     let private isAbsent (e: Error) = e.Code = ErrorCode.pathNotFound || e.Code = ErrorCodes.selectorNoMatch
 
+    /// `Set` ops that create the missing parent objects of `path` (Fnode's `set` does not), so a
+    /// write to `/metadata/name` works when `/metadata` is absent. Only `Key` steps create objects;
+    /// a missing array index is left to fail in the op itself. Then the write itself.
+    let private setCreating (path: Path) (v: Node) (doc: Node) : Op list =
+        let rec parents (pre: Path) (rest: Path) (acc: Op list) =
+            match rest with
+            | [] | [ _ ] -> List.rev acc
+            | (Key _ as seg) :: tl ->
+                let here = pre @ [ seg ]
+                match Node.tryGet here doc with
+                | Error e when e.Code = ErrorCode.pathNotFound -> parents here tl (Set(here, Obj []) :: acc)
+                | _ -> parents here tl acc
+            | seg :: tl -> parents (pre @ [ seg ]) tl acc
+        // once a parent is created everything below it is new: stop probing the original doc
+        let created = parents [] path []
+        match created with
+        | [] -> [ Set(path, v) ]
+        | first :: _ ->
+            let firstPath = match first with Set(p, _) -> p | _ -> []
+            let below =
+                [ for n in List.length firstPath + 1 .. List.length path - 1 -> Set(List.truncate n path, Obj []) ]
+            first :: below @ [ Set(path, v) ]
+
     let private compile (inputs: Map<string, Node>) (rule: Rule) (doc: Node) : Result<Op list, Error> =
         match rule with
         | Rule.Layer _ | Rule.ListsBy _ -> Ok []
         | Rule.Copy((name, src), dest) ->
             match Doc.get src (Map.find name inputs) with
             | Error e -> Error { e with Message = "copy source '" + name + ":" + Selector.print src + "': " + e.Message }
-            | Ok v -> Selector.resolve dest doc |> Result.map (fun d -> [ Set(d, v) ])
+            | Ok v -> Selector.resolve dest doc |> Result.map (fun d -> setCreating d v doc)
         | Rule.Rename(a, b) ->
             Selector.resolve a doc
-            |> Result.bind (fun pa -> Selector.resolve b doc |> Result.map (fun pb -> [ Move(pa, pb) ]))
+            |> Result.bind (fun pa ->
+                Selector.resolve b doc
+                |> Result.map (fun pb ->
+                    let parents = setCreating pb Null doc |> List.rev |> List.tail |> List.rev
+                    parents @ [ Move(pa, pb) ]))
         | Rule.DefaultTo(p, v) ->
             Selector.resolve p doc
             |> Result.bind (fun rp ->
                 match Node.tryGet rp doc with
                 | Ok _ -> Ok []
-                | Error e when e.Code = ErrorCode.pathNotFound -> Ok [ Set(rp, v) ]
+                | Error e when e.Code = ErrorCode.pathNotFound -> Ok(setCreating rp v doc)
                 | Error e -> Error e)
-        | Rule.Set(p, v) -> Selector.resolve p doc |> Result.map (fun rp -> [ Set(rp, v) ])
+        | Rule.Set(p, v) -> Selector.resolve p doc |> Result.map (fun rp -> setCreating rp v doc)
         | Rule.Drop p ->
             match Selector.resolve p doc with
             | Error e when isAbsent e -> Ok []
