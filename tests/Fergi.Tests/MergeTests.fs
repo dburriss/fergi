@@ -261,3 +261,12 @@ let ``Policy defaults`` () =
     Assert.Empty(Policy.defaults.ListRules)
     Assert.True(Policy.defaults.NullDeletes)
     Assert.True(match Policy.defaults.Conflict with OnConflict.LastWins -> true | _ -> false)
+
+[<Fact>]
+let ``identical NaN leaves do not conflict`` () =
+    let a = Obj [ "x", Float nan; "l", Arr [ Float nan ] ]
+    let policy = Policy.withConflict OnConflict.Fail p
+    Assert.True(Node.equals a (ok (merge policy a a)))
+    // Union treats NaN items as already present
+    let u = Policy.withLists ListStrategy.Union policy
+    Assert.True(Node.equals (Arr [ Float nan ]) (ok (merge u (Arr [ Float nan ]) (Arr [ Float nan ]))))

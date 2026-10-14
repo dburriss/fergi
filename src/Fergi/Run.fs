@@ -31,8 +31,8 @@ module Loader =
 /// - Names are validated before the loader is ever called: every `Mapping.Inputs` entry needs a
 ///   `Files` entry (`mapping.inputMissing`), every `Files` entry and every input named in a
 ///   rule must be declared (`mapping.inputUnknown`), at most one `Layer` rule (`mapping.invalid`).
-/// - All inputs load; every load error (all errors of every file) is reported, each message prefixed with
-///   `input 'name' (file): `; each error keeps its Path and Location.
+/// - All inputs load; every load error (all errors of every file) is reported; each error keeps its Path and Location
+///   and gets `Context` entries `input` (the name) and `file`.
 /// - A merge conflict whose pointer has a recorded span in the right (else left) source's `Locations` gets
 ///   that span as `Location` and the message names the input, file and line:column. No span, no Location.
 /// - `ListsBy`/`Conflict`/`NullDeletes` build the merge policy (`Policy.defaults` plus the list rules,
@@ -42,7 +42,8 @@ module Loader =
 ///   is not expressible in a mapping (it holds a function); use `Doc.layers` with a custom `Policy`.
 /// - `Copy`/`Set`/`DefaultTo` create missing parent objects (`/metadata/name` works when `/metadata` is absent).
 /// - Other rules run top to bottom against the current document, each compiled to `Op`s and applied
-///   atomically; the first failing rule stops the run (later rules would see a state that never existed).
+///   atomically (errors get context `rule` (index) and `kind`, plus `op` from `Patch.apply`; a failing
+///   `Copy` source adds `copy source`; `Ensure` failures add `ensure`); the first failing rule stops the run (later rules would see a state that never existed).
 ///   Selectors resolve against the current document. `DefaultTo`/`Set` with a `Where` that matches
 ///   nothing is an error (there is no item to address). `Drop` of an absent path is a no-op.
 /// - `Ensure` hooks run on the result; failures become `ensure.failed` errors.
@@ -93,8 +94,7 @@ module Fergi =
                 match load file with
                 | Ok p -> Ok(n, p)
                 | Error es ->
-                    let prefix = "input '" + n + "' (" + file + "): "
-                    Error(es |> List.map (fun e -> { e with Message = prefix + e.Message })))
+                    Error(es |> List.map (fun e -> e |> Error.withContext "file" file |> Error.withContext "input" n)))
         let errors = results |> List.collect (fun r -> match r with Error es -> es | Ok _ -> [])
         if List.isEmpty errors then
             Ok(results |> List.choose (fun r -> match r with Ok x -> Some x | Error _ -> None) |> Map.ofList)
@@ -119,39 +119,32 @@ module Fergi =
                 Message =
                     e.Message + " - input '" + n + "' (" + file + ") at " + string span.Start.Line + ":" + string span.Start.Column
                 Location = Some span }
+            |> Error.withContext "file" file
+            |> Error.withContext "input" n
         | None -> e
 
-    let private isAbsent (e: Error) = e.Code = ErrorCode.pathNotFound || e.Code = ErrorCodes.selectorNoMatch
-
-    /// `Set` ops that create the missing parent objects of `path` (Fnode's `set` does not), so a
+    /// `Set` ops that create the missing parent objects of `path` (`Op.Set` is strict), so a
     /// write to `/metadata/name` works when `/metadata` is absent. Only `Key` steps create objects;
     /// a missing array index is left to fail in the op itself. Then the write itself.
     let private setCreating (path: Path) (v: Node) (doc: Node) : Op list =
-        let rec parents (pre: Path) (rest: Path) (acc: Op list) =
-            match rest with
-            | [] | [ _ ] -> List.rev acc
-            | (Key _ as seg) :: tl ->
-                let here = pre @ [ seg ]
-                match Node.tryGet here doc with
-                | Error e when e.Code = ErrorCode.pathNotFound -> parents here tl (Op.Set(here, Obj []) :: acc)
-                | _ -> parents here tl acc
-            | seg :: tl -> parents (pre @ [ seg ]) tl acc
+        let len = List.length path
+        let firstMissing =
+            [ 1 .. len - 1 ]
+            |> List.tryFind (fun n ->
+                match List.item (n - 1) path with
+                | Key _ -> not (Node.exists (List.truncate n path) doc)
+                | Index _ -> false)
         // once a parent is created everything below it is new: stop probing the original doc
-        let created = parents [] path []
-        match created with
-        | [] -> [ Op.Set(path, v) ]
-        | first :: _ ->
-            let firstPath = match first with Op.Set(p, _) -> p | _ -> []
-            let below =
-                [ for n in List.length firstPath + 1 .. List.length path - 1 -> Op.Set(List.truncate n path, Obj []) ]
-            first :: below @ [ Op.Set(path, v) ]
+        match firstMissing with
+        | None -> [ Op.Set(path, v) ]
+        | Some first -> [ for n in first .. len - 1 -> Op.Set(List.truncate n path, Obj []) ] @ [ Op.Set(path, v) ]
 
     let private compile (inputs: Map<string, Node>) (rule: Rule) (doc: Node) : Result<Op list, Error> =
         match rule with
         | Rule.Layer _ | Rule.ListsBy _ | Rule.Conflict _ | Rule.NullDeletes _ -> Ok []
         | Rule.Copy((name, src), dest) ->
             match Doc.get src (Map.find name inputs) with
-            | Error e -> Error { e with Message = "copy source '" + name + ":" + Selector.print src + "': " + e.Message }
+            | Error e -> Error(Error.withContext "copy source" (name + ":" + Selector.print src) e)
             | Ok v -> Selector.resolve dest doc |> Result.map (fun d -> setCreating d v doc)
         | Rule.Rename(a, b) ->
             Selector.resolve a doc
@@ -163,19 +156,19 @@ module Fergi =
         | Rule.DefaultTo(p, v) ->
             Selector.resolve p doc
             |> Result.bind (fun rp ->
-                match Node.tryGet rp doc with
-                | Ok _ -> Ok []
-                | Error e when e.Code = ErrorCode.pathNotFound -> Ok(setCreating rp v doc)
+                match Node.tryFind rp doc with
+                | Ok(Some _) -> Ok []
+                | Ok None -> Ok(setCreating rp v doc)
                 | Error e -> Error e)
         | Rule.Set(p, v) -> Selector.resolve p doc |> Result.map (fun rp -> setCreating rp v doc)
         | Rule.Drop p ->
             match Selector.resolve p doc with
-            | Error e when isAbsent e -> Ok []
+            | Error e when e.Code = ErrorCodes.selectorNoMatch || e.Code = ErrorCode.pathNotFound -> Ok []
             | Error e -> Error e
             | Ok rp ->
-                match Node.tryGet rp doc with
-                | Ok _ -> Ok [ Op.Remove rp ]
-                | Error e when e.Code = ErrorCode.pathNotFound -> Ok []
+                match Node.tryFind rp doc with
+                | Ok(Some _) -> Ok [ Op.Remove rp ]
+                | Ok None -> Ok []
                 | Error e -> Error e
 
     let private ruleName (rule: Rule) =
@@ -195,12 +188,10 @@ module Fergi =
             match acc with
             | Error _ -> acc
             | Ok doc ->
-                let tag = "rule " + string i + " (" + ruleName rule + "): "
+                let tag = Error.withContext "kind" (ruleName rule) >> Error.withContext "rule" (string i)
                 match compile inputs rule doc with
-                | Error e -> Error [ { e with Message = tag + e.Message } ]
-                | Ok ops ->
-                    Patch.apply ops doc
-                    |> Result.mapError (List.map (fun e -> { e with Message = tag + e.Message }))
+                | Error e -> Error [ tag e ]
+                | Ok ops -> Patch.apply ops doc |> Result.mapError (List.map tag)
         rules |> List.indexed |> List.fold step (Ok start)
 
     let private runEnsure (m: Mapping) (result: Node) : Error list =
@@ -208,9 +199,11 @@ module Fergi =
         |> List.collect (fun (name, check) ->
             match check result with
             | Ok() -> []
-            | Error [] -> [ err ErrorCodes.ensureFailed ("Ensure '" + name + "' failed") ]
+            | Error [] -> [ err ErrorCodes.ensureFailed ("Ensure '" + name + "' failed") |> Error.withContext "ensure" name ]
             | Error es ->
-                es |> List.map (fun e -> Error.create ErrorCodes.ensureFailed ("Ensure '" + name + "': " + e.Message) e.Path))
+                es
+                |> List.map (fun e ->
+                    Error.create ErrorCodes.ensureFailed e.Message e.Path |> Error.withContext "ensure" name))
 
     let private policyOf (rules: Rule list) : Policy =
         rules

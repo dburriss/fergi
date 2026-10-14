@@ -220,7 +220,10 @@ let ``a later rule sees the result of an earlier one`` () =
 let ``a failing rule stops the run and reports its index`` () =
     let es = runErr (mk [ Rule.Set(sel "/a", Int 1L); Rule.Rename(sel "/zz", sel "/b"); Rule.Set(sel "/c", Int 1L) ])
     Assert.Equal(1, List.length es)
-    Assert.Contains("rule 1 (Rename)", (List.head es).Message)
+    let e = List.head es
+    Assert.Contains(("rule", "1"), e.Context)
+    Assert.Contains(("kind", "Rename"), e.Context)
+    Assert.StartsWith("rule 1: kind Rename:", Error.describe e)
 
 // ---- validation and loading ----
 
@@ -261,12 +264,12 @@ let ``every load error is reported`` () =
     match Fergi.run (mk [ layerAll ]) files load with
     | Error es ->
         Assert.Equal(2, List.length es)
-        Assert.Contains("'org'", es.[0].Message)
-        Assert.Contains("'service'", es.[1].Message)
+        Assert.Contains(("input", "org"), es.[0].Context)
+        Assert.Contains(("input", "service"), es.[1].Context)
     | Ok _ -> failwith "expected error"
 
 [<Fact>]
-let ``every error of one file survives with the prefix, Path and Location`` () =
+let ``every error of one file survives with context, Path and Location`` () =
     let span l c = { Start = { Line = l; Column = c }; End = { Line = l; Column = c + 1 } }
     let e1 = { Error.create ErrorCode.parse "bad one" (ptr "/a") with Location = Some(span 1 2) }
     let e2 = { Error.create ErrorCode.parse "bad two" (ptr "/b") with Location = Some(span 3 4) }
@@ -274,8 +277,11 @@ let ``every error of one file survives with the prefix, Path and Location`` () =
     let load f = if f = "svc.yaml" then Error [ e1; e2 ] else ok f
     match Fergi.run (mk [ layerAll ]) files load with
     | Error [ a; b ] ->
-        Assert.Equal("input 'service' (svc.yaml): bad one", a.Message)
-        Assert.Equal("input 'service' (svc.yaml): bad two", b.Message)
+        Assert.Equal("bad one", a.Message)
+        Assert.Equal("bad two", b.Message)
+        Assert.Equal<(string * string) list>([ "file", "svc.yaml"; "input", "service" ], a.Context)
+        Assert.Equal("input service: file svc.yaml: bad one", Error.describe a)
+        Assert.Equal("input service: file svc.yaml: bad two", Error.describe b)
         Assert.True((ptr "/a" = a.Path))
         Assert.True((ptr "/b" = b.Path))
         Assert.Equal(e1.Location, a.Location)
@@ -289,8 +295,8 @@ let ``errors of two failing inputs accumulate in input order`` () =
     match Fergi.run (mk [ layerAll ]) files load with
     | Error es ->
         Assert.Equal<string list>(
-            [ "input 'org' (org.yaml): o1"; "input 'org' (org.yaml): o2"; "input 'service' (svc.yaml): s1" ],
-            es |> List.map (fun x -> x.Message))
+            [ "input org: file org.yaml: o1"; "input org: file org.yaml: o2"; "input service: file svc.yaml: s1" ],
+            es |> List.map Error.describe)
     | Ok _ -> failwith "expected errors"
 
 [<Fact>]

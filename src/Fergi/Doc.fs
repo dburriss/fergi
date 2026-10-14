@@ -24,7 +24,7 @@ module Doc =
     ///
     /// - Objects merge key by key: base key order is kept, new keys are appended in overlay order.
     /// - Identical scalars never conflict. Scalars compare structurally with no Int/Float
-    ///   coercion; `Timestamp` compares by text; `Str "x"` and `Timestamp "x"` differ; NaN differs from NaN.
+    ///   coercion; `Timestamp` compares by text; `Str "x"` and `Timestamp "x"` differ; NaN equals NaN (`Node.equals`).
     /// - Differing scalars, or a type mismatch (object vs array vs scalar), are decided by
     ///   `OnConflict`: `LastWins` takes the overlay, `FirstWins` keeps the base (neither reports a
     ///   conflict), `Fail` reports a `Conflict` and keeps the base in the partial result,

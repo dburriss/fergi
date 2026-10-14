@@ -90,7 +90,7 @@ module Merge =
         | Arr bi, Arr oi ->
             match strategyFor pol path with
             | ListStrategy.Replace ->
-                if b = o then b, assignWhole path o src st
+                if Node.equals b o then b, assignWhole path o src st
                 else decide pol src path b o "lists differ (Replace)" st
             | ListStrategy.Append ->
                 let st =
@@ -102,7 +102,7 @@ module Merge =
                 let items, st =
                     List.fold
                         (fun (acc: Node list, st) item ->
-                            if List.contains item acc then acc, st
+                            if List.exists (Node.equals item) acc then acc, st
                             else acc @ [ item ], assignWhole (path @ [ Index(List.length acc) ]) item src st)
                         (bi, st)
                         oi
@@ -137,7 +137,7 @@ module Merge =
                 | cs -> b, List.fold (fun st c -> addConflict c st) st cs
         | _ ->
             let scalar (n: Node) = match n with Obj _ | Arr _ -> false | _ -> true
-            if scalar b && scalar o && b = o then b, assignWhole path o src st
+            if scalar b && scalar o && Node.equals b o then b, assignWhole path o src st
             else
                 let reason =
                     if scalar b && scalar o then "values differ"

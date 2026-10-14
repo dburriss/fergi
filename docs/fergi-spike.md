@@ -67,20 +67,24 @@ before 0.x if cheap, **P3** can follow in a minor version.
    whole pointer. Fergi re-implemented `unescape` (and `escape`) to parse `[key=value]` selector parts.
    Fix: expose `Path.escapeSegment`, `Path.unescapeSegment : string -> string option` and
    `Path.parseSegment : string -> Result<Segment, Error>` (`Path.printSegment` is already public). **P1**.
+   **Done: `Path.escapeSegment`, `Path.unescapeSegment`, `Path.parseSegment`; Fergi's `Selector` uses them.**
 2. **`Node.set` does not create missing parents, and there is no existence test.** The mapping rule
    `Copy ... -> /metadata/name` failed with `path.notFound` when `/metadata` was absent; Fergi added its own
    `setCreating` (emits `Set(parent, Obj [])` ops). Fix: add `Node.setCreating : Path -> Node -> Node -> Result<Node, Error>`
    (creates `Obj []` for missing `Key` parents, still errors for a missing array index) and
    `Node.exists : Path -> Node -> bool`. **P1** (every consumer needs it).
+   **Done: `Node.setCreating` and `Node.exists`. `Op.Set` stays strict, so Fergi's `Run` still emits explicit parent `Set` ops, but finds the missing parents with `Node.exists`.**
 3. **`tryGet`/`set`/`remove` cannot say "absent" vs "mismatch" without reading `Error.Code`.** Fergi has
    `isAbsent e = e.Code = "path.notFound" || ...` in several places. Fix: either a total
    `Node.tryFind : Path -> Node -> Result<Node option, Error>` (Ok None = absent, Error = type mismatch), or
    a DU on the error (`ErrorKind = NotFound | Mismatch | ...`) next to the string code. **P1**.
+   **Done: `Node.tryFind` (`Ok None` = absent, `Error` = mismatch). `Fergi.Run` uses it for `DefaultTo`/`Drop`.**
 4. **No object helpers; `Obj` can hold duplicate keys.** Fergi hand-rolls "find key", "replace in place",
    "append key", "remove key keeping order" and `hasDuplicates` (needed because `Patch.diff` cannot be
    correct on duplicate keys, so it falls back to a whole-object `Set`). Fix: `Node.tryFindKey`,
    `Node.upsertKey`, `Node.removeKey` (order preserving), `Node.hasDuplicateKeys`; decide and document whether
    adapters may produce duplicates (YAML parse currently can). **P2**.
+   **Done: `Node.tryFindKey`, `upsertKey`, `removeKey`, `hasDuplicateKeys`. Duplicate keys remain allowed in `Obj` (documented on `Node`); lookups act on the first match.**
 5. **`Error.Path` is a `Path`, so it cannot carry a `Where`.** A selector error such as "no item matches
    `[name=x]`" can only report the resolved prefix; the failing step is in the message text. Fix: keep
    `Path` and document the convention (path = resolved prefix), or make `Error` generic over the path
@@ -90,16 +94,19 @@ before 0.x if cheap, **P3** can follow in a minor version.
    `Conflict` type with `Left/Right/LeftSource/RightSource`, converted by `Conflict.toError`).
    Callers cannot get these back as data. Fix: add `Context: (string * string) list` (or a
    `Source: string option`) to `Error`, plus `Error.withContext`/`Error.mapMessage` helpers. **P2**.
+   **Done: `Error.Context`, `Error.withContext`, `Error.mapMessage`, `Error.describe`. Fergi's `op`, `rule`/`kind`, `input`/`file`, `copy source` and `ensure` prefixes are now context entries; `Error.describe` renders them. `Conflict` still has its own type.**
 7. **`Float nan` breaks structural equality.** `Test`, `diff`, `merge` and `Union` all use `=`, and
    `Float nan <> Float nan`, so `diff a a` is not empty and merge reports `values differ` for identical NaN
    leaves (documented in `Doc.merge`). Fix: define `Node` equality/`Node.equals` with bitwise float
    comparison (or custom equality on `Float`), or state in the core that NaN is not a legal `Node`. **P1**
    (equality is part of the contract; changing it after publishing is breaking).
+   **Done: `Node.equals` (NaN-safe). Plain `=` is unchanged; Fergi's merge, diff and `Test` use `Node.equals`.**
 8. **A numeric object key prints the same as an `Index`.** `Path.print [Key "0"]` and `[Index 0]` are both
    `/0`, so provenance keys (`Path.print`) and `ListRules` pointers are ambiguous between "object key 0" and
    "array item 0"; `Path.parse "/0"` always yields `Key "0"` (resolution against the document decides).
    Fix: document it as a property of JSON Pointer, and offer `Path.resolve : Node -> Path -> Path` (turn
    numeric `Key` into `Index` when the node is an array) so consumers can normalise. **P2**.
+   **Done: `Path.resolve` normalises a path against a document; the JSON Pointer ambiguity itself is documented in `Path.fs`.**
 9. **Path equality in xunit assertions needs `Assert.True(a = b)`.** `Path` is a plain list alias, so
    xunit's `Assert.Equal` can bind to a sequence overload; the tests use
    `Assert.True((ptr "/team" = c.Path))` or `Assert.Equal<Path>`. Fix: make `Path` a single-case record/struct
@@ -259,6 +266,6 @@ Queued follow-ups (in suggested order):
   `file:line:col` and all parse errors survive (friction item 10).
 - **[c] Policy rules in the mapping: done** for `Conflict` and `NullDeletes` (`Rule.Conflict`,
   `Rule.NullDeletes`, `ConflictMode`). Not done: a default list strategy and non-`ByKey` list rules as data.
-- Fnode additions from section 2 marked P1 (`Path.*Segment`, `Node.setCreating`/`exists`/`tryFind`, NaN
-  equality) before publishing 0.x, then Fergi drops its private copies (`Selector.unescape`, `setCreating`,
-  `isAbsent`, `hasDuplicates`).
+- **[d] Fnode P1 and P2 additions: done** (section 2 items 1-4 and 6-8). Fergi dropped `Selector.escape`/`unescape`,
+  `isAbsent` and `hasDuplicates`; its `setCreating` is now a thin op-list builder over `Node.exists`. Items 5 and 9
+  stay P3 (documentation only).

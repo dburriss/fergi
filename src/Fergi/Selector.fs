@@ -26,28 +26,6 @@ module Selector =
 
     let private invalid (msg: string) : Error = Error.create ErrorCode.pathInvalid msg []
 
-    let private escape (s: string) = s.Replace("~", "~0").Replace("/", "~1")
-
-    /// None when `s` contains a `~` not followed by 0 or 1.
-    let private unescape (s: string) : string option =
-        let sb = System.Text.StringBuilder()
-        let mutable ok = true
-        let mutable i = 0
-        while ok && i < s.Length do
-            let c = s.[i]
-            if c = '~' then
-                if i + 1 < s.Length && s.[i + 1] = '0' then
-                    sb.Append('~') |> ignore
-                    i <- i + 2
-                elif i + 1 < s.Length && s.[i + 1] = '1' then
-                    sb.Append('/') |> ignore
-                    i <- i + 2
-                else ok <- false
-            else
-                sb.Append(c) |> ignore
-                i <- i + 1
-        if ok then Some(sb.ToString()) else None
-
     let private isWhere (part: string) =
         part.Length >= 3 && part.[0] = '[' && part.[part.Length - 1] = ']' && part.IndexOf '=' > 0
 
@@ -55,7 +33,7 @@ module Selector =
         if isWhere part then
             let inner = part.Substring(1, part.Length - 2)
             let eq = inner.IndexOf '='
-            match unescape (inner.Substring(0, eq)), unescape (inner.Substring(eq + 1)) with
+            match Path.unescapeSegment (inner.Substring(0, eq)), Path.unescapeSegment (inner.Substring(eq + 1)) with
             | Some k, Some v when k <> "" -> Ok(Where(k, v))
             | _ -> Error(invalid ("Invalid selector segment: " + part))
         else
@@ -82,7 +60,7 @@ module Selector =
     let printSelector (sel: Selector) : string =
         match sel with
         | Seg seg -> Path.printSegment seg
-        | Where(k, v) -> "[" + escape k + "=" + escape v + "]"
+        | Where(k, v) -> "[" + Path.escapeSegment k + "=" + Path.escapeSegment v + "]"
 
     /// Print as a selector string. Root is "".
     let print (path: SelectorPath) : string =
@@ -117,7 +95,7 @@ module Selector =
                     | None -> None
                 go (seg :: trail) next tl
             | Where(k, v) :: tl ->
-                let text = "[" + escape k + "=" + escape v + "]"
+                let text = "[" + Path.escapeSegment k + "=" + Path.escapeSegment v + "]"
                 match cur with
                 | None ->
                     Error(Error.create ErrorCodes.selectorNoMatch ("Cannot resolve " + text + ": parent does not exist") (List.rev trail))

@@ -48,8 +48,10 @@ let ``failed op returns every error and the input is untouched`` () =
     Assert.Equal(before, doc)
     match r with
     | Error [ e1; e2 ] ->
-        Assert.StartsWith("op 1:", e1.Message)
-        Assert.StartsWith("op 3:", e2.Message)
+        Assert.Equal<(string * string) list>([ "op", "1" ], e1.Context)
+        Assert.Equal<(string * string) list>([ "op", "3" ], e2.Context)
+        Assert.StartsWith("op 1:", Error.describe e1)
+        Assert.StartsWith("op 3:", Error.describe e2)
     | _ -> failwith "expected two errors"
 
 [<Fact>]
@@ -173,3 +175,9 @@ let ``apply (diff a b) a = Ok b`` (a: Node) (b: Node) =
 
 [<Property(Arbitrary = [| typeof<NodeArb> |])>]
 let ``diff a a is empty`` (a: Node) = List.isEmpty (Patch.diff a a)
+
+[<Fact>]
+let ``NaN leaves diff to nothing and satisfy Test`` () =
+    let d = Obj [ "x", Float nan; "y", Arr [ Float nan ] ]
+    Assert.Equal<Op list>([], Patch.diff d d)
+    Assert.True(Result.isOk (Patch.apply [ Op.Test([ Key "x" ], Float nan) ] d))

@@ -212,8 +212,8 @@ let ``a missing input file is a load error and the others still load`` () =
     match runWith (filesWith "teams/nope.yaml" "services/billing/nope.json") with
     | Error es ->
         Assert.Equal<string list>([ "load.fileNotFound"; "load.fileNotFound" ], codes es)
-        Assert.Contains("'team'", es.[0].Message)
-        Assert.Contains("'service'", es.[1].Message)
+        Assert.Contains(("input", "team"), es.[0].Context)
+        Assert.Contains(("input", "service"), es.[1].Context)
     | Ok _ -> failwith "expected errors"
 
 [<Fact>]
@@ -235,21 +235,27 @@ let ``malformed YAML reports file and line through the whole pipeline`` () =
     match runWith (filesWith "teams/energy.yaml" "services/billing/broken.yaml") with
     | Error [ e ] ->
         Assert.Equal(ErrorCode.parse, e.Code)
-        Assert.Contains("'service'", e.Message)
-        Assert.Contains("services/billing/broken.yaml", e.Message)
+        Assert.Contains(("input", "service"), e.Context)
+        Assert.Contains(("file", "services/billing/broken.yaml"), e.Context)
         match e.Location with
         | Some span -> Assert.True(span.Start.Line >= 1 && span.Start.Column >= 1)
         | None -> failwith "expected a Location"
     | other -> failwithf "unexpected %A" other
 
 [<Fact>]
-let ``two broken inputs accumulate errors with their own file prefixes`` () =
+let ``two broken inputs accumulate errors with their own file context`` () =
     match runWith (filesWith "teams/nope.yaml" "services/billing/broken.yaml") with
     | Error es ->
         Assert.True(List.length es >= 2)
-        Assert.Contains("'team'", es.[0].Message)
+        Assert.Contains(("input", "team"), es.[0].Context)
         Assert.Equal("load.fileNotFound", es.[0].Code)
-        Assert.True(es |> List.exists (fun e -> e.Code = ErrorCode.parse && e.Message.Contains "'service' (services/billing/broken.yaml)"))
+        Assert.True(
+            es
+            |> List.exists (fun e ->
+                e.Code = ErrorCode.parse
+                && List.contains ("input", "service") e.Context
+                && List.contains ("file", "services/billing/broken.yaml") e.Context)
+        )
     | Ok _ -> failwith "expected errors"
 
 // (7)

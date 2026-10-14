@@ -36,14 +36,14 @@ module Patch =
         | Op.Test(p, expected) ->
             match Node.tryGet p doc with
             | Error e -> Error e
-            | Ok actual when actual = expected -> Ok doc
+            | Ok actual when Node.equals actual expected -> Ok doc
             | Ok _ ->
                 Error(Error.create ErrorCodes.patchTestFailed ("Value at '" + Path.print p + "' differs from the expected value") p)
 
     /// Apply ops in order. Atomic: either every op succeeds and the new document is returned,
     /// or the input is untouched and every failing op is reported (a failing op is skipped so
-    /// later ops are still checked against the state before it). Messages are prefixed with the
-    /// op index, `Code` and `Path` are the underlying Fnode / Fergi ones.
+    /// later ops are still checked against the state before it). Each error carries the 0-based
+    /// op index as context `op`; `Code` and `Path` are the underlying Fnode / Fergi ones.
     let apply (ops: Op list) (doc: Node) : Result<Node, Error list> =
         let cur, errors =
             ops
@@ -52,12 +52,9 @@ module Patch =
                 (fun (cur, errs) (i, op) ->
                     match applyOne op cur with
                     | Ok next -> next, errs
-                    | Error e -> cur, { e with Message = "op " + string i + ": " + e.Message } :: errs)
+                    | Error e -> cur, Error.withContext "op" (string i) e :: errs)
                 (doc, [])
         if List.isEmpty errors then Ok cur else Error(List.rev errors)
-
-    let private hasDuplicates (kvs: (string * Node) list) =
-        List.length (List.distinct (List.map fst kvs)) <> List.length kvs
 
     /// Ops that turn `a` into `b`: `Apply (diff a b) a = Ok b`.
     ///
@@ -69,10 +66,10 @@ module Patch =
     let diff (a: Node) (b: Node) : Op list =
         let rec go (prefix: Segment list) (a: Node) (b: Node) : Op list =
             let here = List.rev prefix
-            if a = b then []
+            if Node.equals a b then []
             else
                 match a, b with
-                | Obj akv, Obj bkv when not (hasDuplicates akv) && not (hasDuplicates bkv) ->
+                | Obj akv, Obj bkv when not (Node.hasDuplicateKeys akv) && not (Node.hasDuplicateKeys bkv) ->
                     let bKeys = List.map fst bkv
                     let common = akv |> List.map fst |> List.filter (fun k -> List.contains k bKeys)
                     if List.truncate (List.length common) bKeys <> common then [ Op.Set(here, b) ]
@@ -84,8 +81,8 @@ module Patch =
                         let sets =
                             bkv
                             |> List.collect (fun (k, bv) ->
-                                match List.tryFind (fun (k2, _) -> k2 = k) akv with
-                                | Some(_, av) -> go (Key k :: prefix) av bv
+                                match Node.tryFindKey k akv with
+                                | Some av -> go (Key k :: prefix) av bv
                                 | None -> [ Op.Set(here @ [ Key k ], bv) ])
                         removes @ sets
                 | _ -> [ Op.Set(here, b) ]
