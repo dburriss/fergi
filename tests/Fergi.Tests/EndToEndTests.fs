@@ -134,7 +134,7 @@ let ``plan against the current output yields no ops and with a stale output yiel
     let staleLoad f = if f = billingFiles.Output then Ok { Node = stale; Locations = Map.empty } else load f
     match Fergi.plan billingMapping billingFiles staleLoad with
     | Ok p ->
-        Assert.Contains(Set(ptr "/replicas", Int 4L), p.Ops)
+        Assert.Contains(Op.Set(ptr "/replicas", Int 4L), p.Ops)
         Assert.Equal(Ok p.Result, Patch.apply p.Ops stale)
     | Error es -> failwithf "%A" es
 
@@ -195,7 +195,7 @@ let ``a conflict at a pointer with no recorded span leaves Location None`` () =
 let ``Doc.layers with Fail reports a scalar conflict between team and service`` () =
     let team = mustLoad "teams/energy.yaml"
     let service = Obj [ "team", Str "platform" ]
-    let pol = Policy.defaults |> Policy.withConflict Fail
+    let pol = Policy.defaults |> Policy.withConflict OnConflict.Fail
     match Doc.layers pol [ "team", team; "service", service ] with
     | Error [ c ] ->
         Assert.True((ptr "/team" = c.Path))

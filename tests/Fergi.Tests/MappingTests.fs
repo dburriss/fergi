@@ -298,7 +298,7 @@ let ``plan treats any load error of the output as absent`` () =
     let ok = Loader.ofNodes store
     let load f = if f = "out.yaml" then Error [ Error.create ErrorCode.parse "x" []; Error.create ErrorCode.parse "y" [] ] else ok f
     match Fergi.plan (mk [ layerAll ]) files load with
-    | Ok p -> Assert.Equal<Op list>([ Set([], p.Result) ], p.Ops)
+    | Ok p -> Assert.Equal<Op list>([ Op.Set([], p.Result) ], p.Ops)
     | Error _ -> failwith "expected ok"
 
 [<Fact>]
@@ -380,7 +380,7 @@ let ``plan against an absent output diffs from Null`` () =
     match Fergi.plan (mk [ layerAll ]) files load with
     | Ok p ->
         Assert.Equal("out.yaml", p.Output)
-        Assert.Equal<Op list>([ Set([], p.Result) ], p.Ops)
+        Assert.Equal<Op list>([ Op.Set([], p.Result) ], p.Ops)
     | Error _ -> failwith "expected ok"
 
 [<Fact>]
@@ -390,8 +390,8 @@ let ``plan against an existing output returns minimal ops that apply`` () =
     match Fergi.plan (mk [ Rule.Layer [ "org" ]; Rule.Drop(sel "/internal"); Rule.Drop(sel "/ports") ]) files load with
     | Ok p ->
         Assert.Equal(Ok p.Result, Patch.apply p.Ops current)
-        Assert.Contains(Remove(ptr "/old"), p.Ops)
-        Assert.Contains(Set(ptr "/replicas", Int 2L), p.Ops)
+        Assert.Contains(Op.Remove(ptr "/old"), p.Ops)
+        Assert.Contains(Op.Set(ptr "/replicas", Int 2L), p.Ops)
     | Error _ -> failwith "expected ok"
 
 [<Fact>]

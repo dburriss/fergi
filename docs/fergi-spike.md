@@ -18,7 +18,7 @@ Compile order and content:
 | 2 | `Policy.fs` | `Conflict`, `ListStrategy`, `OnConflict`, `Policy` (+ `ListRules`), `Policy.defaults`/`withLists`/`withListRule`/`withListsBy`/`withConflict`/`withNullDeletes` |
 | 2 | `Merge.fs` | the merge walk, provenance, `Merge.merge`/`Merge.layers` |
 | 1/2 | `Doc.fs` | `Doc.get/set/remove` (selector-addressed Fnode ops), `Doc.merge`, `Doc.layers` |
-| 1 | `Patch.fs` | `Op = Set | Remove | Append | Move | Test`, atomic `Patch.apply`, `Patch.diff` |
+| 1 | `Patch.fs` | `Op = Set | Remove | Append | Move | Test` (qualified access only), atomic `Patch.apply`, `Patch.diff` |
 | 4 | `Mapping.fs` | `Rule`, `Mapping`, `Files`, `SourcePath.parse` (`service:/name`), `Mapping.create/ensure/copy` |
 | 4 | `Run.fs` | `Fergi.run`, `Fergi.plan` (`{ Output; Result; Ops; Provenance }`), `Fergi.runFiles` |
 
@@ -158,8 +158,9 @@ Facts established by the spike, each with a suggested note edit:
 - **`Ensure` is a field of `Mapping`**, not a `Rule`, to keep `Rule` plain data (serialisable).
 - Stale in `Fergi.md`: `Int of int`, `Where` in `Segment`, and "Fergi.Json" as a namespace (the placeholder
   `JsonValue` namespace; do not `open Fergi.Json` and `open Fergi` together blindly).
-- **Union case clash:** `Op.Append`/`ListStrategy.Append` and `Op.Set`/`Rule.Set` share names. `Rule` is
-  `[<RequireQualifiedAccess>]` already; `Op` and `ListStrategy` are not (follow-up [a]).
+- **Union case clash: fixed (follow-up [a]).** `Op.Append`/`ListStrategy.Append` and `Op.Set`/`Rule.Set` shared
+  names. `Op`, `ListStrategy` and `OnConflict` are now `[<RequireQualifiedAccess>]` like `Rule`, so every case is
+  written qualified.
 
 ## 4. Merge law findings
 
@@ -237,9 +238,9 @@ Also not done, found while building:
 
 Queued follow-ups (in suggested order):
 
-- **[a] `[<RequireQualifiedAccess>]` on `Op` and `ListStrategy`.** Removes the union-case clashes
-  `Op.Append` / `ListStrategy.Append` and `Op.Set` / `Rule.Set`. Cost: about 38 test usages plus `Merge.fs`
-  and `Policy.fs`; also removes the Fable expected-type workaround.
+- **[a] `[<RequireQualifiedAccess>]` on `Op` and `ListStrategy`: done** (and on `OnConflict`, whose generic
+  `Fail`/`Resolve` names would otherwise leak into scope). Removes the union-case clashes `Op.Append` /
+  `ListStrategy.Append` and `Op.Set` / `Rule.Set`, and the Fable expected-type workaround.
 - **[b] Loader signature change: done.** `string -> Result<Parsed, Error list>` so conflicts carry
   `file:line:col` and all parse errors survive (friction item 10).
 - **[c] `Rule.Policy` / `Mapping.Policy`** so a mapping can pick `Conflict`, `NullDeletes`, default list

@@ -41,7 +41,7 @@ let ``int64 values survive merge, layers and a YAML round trip exactly`` () =
         layered)
     Assert.Equal(layered, yaml (Fnode.Yaml.format.Print layered))
     // a one-unit difference above 2^53 is still a conflict, not "equal"
-    let pol = Policy.defaults |> Policy.withConflict Fail
+    let pol = Policy.defaults |> Policy.withConflict OnConflict.Fail
     Assert.True(Result.isError (Doc.merge pol (Obj [ "v", Int big ]) (Obj [ "v", Int(big - 1L) ])))
     Assert.Equal(Ok(Obj [ "v", Int big ]), Doc.merge pol (Obj [ "v", Int big ]) (Obj [ "v", Int big ]))
 
@@ -60,7 +60,7 @@ let ``timestamp text passes through merge and print unchanged`` () =
     Assert.Contains("at: 2001-12-14t21:59:43.10-05:00", text)
     Assert.Contains("other: 2024-01-02 03:04:05 +05:30", text)
     // Str and Timestamp with the same text are different values
-    Assert.True(Result.isError (Doc.merge (Policy.defaults |> Policy.withConflict Fail) (Obj [ "t", Str "2026-10-14" ]) (Obj [ "t", Timestamp "2026-10-14" ])))
+    Assert.True(Result.isError (Doc.merge (Policy.defaults |> Policy.withConflict OnConflict.Fail) (Obj [ "t", Str "2026-10-14" ]) (Obj [ "t", Timestamp "2026-10-14" ])))
 
 [<Fact>]
 let ``provenance map iterates in ordinal key order`` () =

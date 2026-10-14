@@ -56,10 +56,10 @@ module Merge =
     /// Two values that cannot be combined structurally: `OnConflict` decides.
     let private decide (pol: Policy) (src: string) (path: Path) (b: Node) (o: Node) (reason: string) (st: St) : Node * St =
         match pol.Conflict with
-        | LastWins -> o, assignWhole path o src st
-        | FirstWins -> b, st
-        | Fail -> b, addConflict (conflict path b o reason) st
-        | Resolve f ->
+        | OnConflict.LastWins -> o, assignWhole path o src st
+        | OnConflict.FirstWins -> b, st
+        | OnConflict.Fail -> b, addConflict (conflict path b o reason) st
+        | OnConflict.Resolve f ->
             match f path b o with
             | Ok n -> n, assignWhole path n src st
             | Error c -> b, addConflict c st
@@ -89,16 +89,16 @@ module Merge =
             Obj kv, touch path src st
         | Arr bi, Arr oi ->
             match strategyFor pol path with
-            | Replace ->
+            | ListStrategy.Replace ->
                 if b = o then b, assignWhole path o src st
                 else decide pol src path b o "lists differ (Replace)" st
-            | Append ->
+            | ListStrategy.Append ->
                 let st =
                     oi
                     |> List.indexed
                     |> List.fold (fun st (j, item) -> assignWhole (path @ [ Index(List.length bi + j) ]) item src st) st
                 Arr(bi @ oi), touch path src st
-            | Union ->
+            | ListStrategy.Union ->
                 let items, st =
                     List.fold
                         (fun (acc: Node list, st) item ->
@@ -107,7 +107,7 @@ module Merge =
                         (bi, st)
                         oi
                 Arr items, touch path src st
-            | ByKey k ->
+            | ListStrategy.ByKey k ->
                 let bad (side: string) (items: Node list) =
                     items
                     |> List.indexed

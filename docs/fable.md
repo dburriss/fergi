@@ -63,8 +63,9 @@ and shims:
   module under `FABLE_COMPILER` and the disk on .NET. Every fixture (YAML, JSON, the malformed file, the
   error-path variants) goes through the same adapters, so the e2e results are the same on all targets.
 - **Union case clash**: Fable's compiler does not use the expected type to choose between `Op.Append` and
-  `ListStrategy.Append` (the .NET compiler does), so `Policy.withLists Append` failed to compile. Tests now
-  write `ListStrategy.Append`. A `[<RequireQualifiedAccess>]` on `Op`/`ListStrategy` would remove the problem.
+  `ListStrategy.Append` (the .NET compiler does), so `Policy.withLists Append` failed to compile. Fixed at
+  the source: `Op`, `ListStrategy` and `OnConflict` are `[<RequireQualifiedAccess>]`, so the cases are always
+  written qualified (`Op.Append`, `ListStrategy.Append`).
 - `ParityTests.fs` pins the behaviours most likely to diverge: merged key order, int64 values above 2^53
   and at the int64 limits through merge/layers and a YAML round trip, Timestamp text through merge and
   print, the ordinal iteration order of the provenance `Map` (`/B` < `/a` < `/a/b` < `/a~0b` < `/z` < `/é`)

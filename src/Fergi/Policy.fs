@@ -28,6 +28,7 @@ module Conflict =
             c.Path
 
 /// How two arrays at the same path combine.
+[<RequireQualifiedAccess>]
 type ListStrategy =
     /// Treat the list as one atomic value: if the two differ, `OnConflict` decides which wins.
     | Replace
@@ -42,6 +43,7 @@ type ListStrategy =
 /// What to do when two values must be reconciled and cannot be combined structurally:
 /// differing scalars, a type mismatch (object vs array vs scalar), or differing lists under `Replace`.
 /// Identical values never conflict.
+[<RequireQualifiedAccess>]
 type OnConflict =
     /// The overlay wins, no conflict.
     | LastWins
@@ -67,9 +69,9 @@ module Policy =
     /// Lists `Replace`, no rules, `LastWins`, `NullDeletes = true`.
     /// (Named `defaults` because `default` is an F# keyword.)
     let defaults: Policy =
-        { Lists = Replace
+        { Lists = ListStrategy.Replace
           ListRules = []
-          Conflict = LastWins
+          Conflict = OnConflict.LastWins
           NullDeletes = true }
 
     let withLists (s: ListStrategy) (p: Policy) : Policy = { p with Lists = s }
@@ -79,7 +81,7 @@ module Policy =
         { p with ListRules = (List.filter (fun (q, _) -> q <> path) p.ListRules) @ [ path, s ] }
 
     /// Merge the list at `path` by the string field `key` (`ByKey key`).
-    let withListsBy (path: Path) (key: string) (p: Policy) : Policy = withListRule path (ByKey key) p
+    let withListsBy (path: Path) (key: string) (p: Policy) : Policy = withListRule path (ListStrategy.ByKey key) p
 
     let withConflict (c: OnConflict) (p: Policy) : Policy = { p with Conflict = c }
 

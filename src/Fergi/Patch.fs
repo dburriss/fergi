@@ -3,6 +3,7 @@ namespace Fergi
 open Fnode
 
 /// One edit over a resolved `Path`.
+[<RequireQualifiedAccess>]
 type Op =
     /// Replace the node at the path, or add a new key / append at index = length.
     | Set of Path * Node
@@ -19,20 +20,20 @@ module Patch =
 
     let private applyOne (op: Op) (doc: Node) : Result<Node, Error> =
         match op with
-        | Set(p, v) -> Node.set p v doc
-        | Remove p -> Node.remove p doc
-        | Append(p, v) ->
+        | Op.Set(p, v) -> Node.set p v doc
+        | Op.Remove p -> Node.remove p doc
+        | Op.Append(p, v) ->
             match Node.tryGet p doc with
             | Error e -> Error e
             | Ok(Arr items) -> Node.set p (Arr(items @ [ v ])) doc
             | Ok _ ->
                 Error(Error.create ErrorCode.typeMismatch ("Append needs an array at '" + Path.print p + "'") p)
-        | Move(from, dest) ->
+        | Op.Move(from, dest) ->
             if from = dest then Node.tryGet from doc |> Result.map (fun _ -> doc)
             else
                 Node.tryGet from doc
                 |> Result.bind (fun v -> Node.remove from doc |> Result.bind (Node.set dest v))
-        | Test(p, expected) ->
+        | Op.Test(p, expected) ->
             match Node.tryGet p doc with
             | Error e -> Error e
             | Ok actual when actual = expected -> Ok doc
@@ -74,18 +75,18 @@ module Patch =
                 | Obj akv, Obj bkv when not (hasDuplicates akv) && not (hasDuplicates bkv) ->
                     let bKeys = List.map fst bkv
                     let common = akv |> List.map fst |> List.filter (fun k -> List.contains k bKeys)
-                    if List.truncate (List.length common) bKeys <> common then [ Set(here, b) ]
+                    if List.truncate (List.length common) bKeys <> common then [ Op.Set(here, b) ]
                     else
                         let removes =
                             akv
                             |> List.filter (fun (k, _) -> not (List.contains k bKeys))
-                            |> List.map (fun (k, _) -> Remove(here @ [ Key k ]))
+                            |> List.map (fun (k, _) -> Op.Remove(here @ [ Key k ]))
                         let sets =
                             bkv
                             |> List.collect (fun (k, bv) ->
                                 match List.tryFind (fun (k2, _) -> k2 = k) akv with
                                 | Some(_, av) -> go (Key k :: prefix) av bv
-                                | None -> [ Set(here @ [ Key k ], bv) ])
+                                | None -> [ Op.Set(here @ [ Key k ], bv) ])
                         removes @ sets
-                | _ -> [ Set(here, b) ]
+                | _ -> [ Op.Set(here, b) ]
         go [] a b

@@ -125,18 +125,18 @@ module Fergi =
             | (Key _ as seg) :: tl ->
                 let here = pre @ [ seg ]
                 match Node.tryGet here doc with
-                | Error e when e.Code = ErrorCode.pathNotFound -> parents here tl (Set(here, Obj []) :: acc)
+                | Error e when e.Code = ErrorCode.pathNotFound -> parents here tl (Op.Set(here, Obj []) :: acc)
                 | _ -> parents here tl acc
             | seg :: tl -> parents (pre @ [ seg ]) tl acc
         // once a parent is created everything below it is new: stop probing the original doc
         let created = parents [] path []
         match created with
-        | [] -> [ Set(path, v) ]
+        | [] -> [ Op.Set(path, v) ]
         | first :: _ ->
-            let firstPath = match first with Set(p, _) -> p | _ -> []
+            let firstPath = match first with Op.Set(p, _) -> p | _ -> []
             let below =
-                [ for n in List.length firstPath + 1 .. List.length path - 1 -> Set(List.truncate n path, Obj []) ]
-            first :: below @ [ Set(path, v) ]
+                [ for n in List.length firstPath + 1 .. List.length path - 1 -> Op.Set(List.truncate n path, Obj []) ]
+            first :: below @ [ Op.Set(path, v) ]
 
     let private compile (inputs: Map<string, Node>) (rule: Rule) (doc: Node) : Result<Op list, Error> =
         match rule with
@@ -151,7 +151,7 @@ module Fergi =
                 Selector.resolve b doc
                 |> Result.map (fun pb ->
                     let parents = setCreating pb Null doc |> List.rev |> List.tail |> List.rev
-                    parents @ [ Move(pa, pb) ]))
+                    parents @ [ Op.Move(pa, pb) ]))
         | Rule.DefaultTo(p, v) ->
             Selector.resolve p doc
             |> Result.bind (fun rp ->
@@ -166,7 +166,7 @@ module Fergi =
             | Error e -> Error e
             | Ok rp ->
                 match Node.tryGet rp doc with
-                | Ok _ -> Ok [ Remove rp ]
+                | Ok _ -> Ok [ Op.Remove rp ]
                 | Error e when e.Code = ErrorCode.pathNotFound -> Ok []
                 | Error e -> Error e
 

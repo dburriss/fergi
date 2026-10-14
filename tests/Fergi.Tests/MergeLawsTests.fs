@@ -119,7 +119,7 @@ let ``NullDeletes=true is not associative: a null delete between two layers hide
 
 [<Fact>]
 let ``NullDeletes=true with Fail is not associative: success on one grouping, conflict on the other`` () =
-    let pol = Policy.defaults |> Policy.withConflict Fail
+    let pol = Policy.defaults |> Policy.withConflict OnConflict.Fail
     let a = Obj [ "x", Int 1L ]
     let b = Obj [ "x", Null ]
     let c = Obj [ "x", Int 2L ]
@@ -131,7 +131,7 @@ let ``NullDeletes=true with Fail is not associative: success on one grouping, co
 
 [<Fact>]
 let ``Fail is associative on success but the two groupings report different conflicts`` () =
-    let pol = Policy.defaults |> Policy.withNullDeletes false |> Policy.withConflict Fail
+    let pol = Policy.defaults |> Policy.withNullDeletes false |> Policy.withConflict OnConflict.Fail
     let a = Obj [ "x", Int 1L ]
     let b = Obj [ "x", Int 2L ]
     let c = Obj [ "x", Int 3L ]
@@ -153,5 +153,5 @@ let ``Append is associative but not idempotent, Union is idempotent`` () =
     let right = m ap b c |> Result.bind (fun bc -> m ap a bc)
     Assert.Equal(left, right)
     Assert.NotEqual<Result<Node, Conflict list>>(Ok a, m ap a a)
-    let un = lawful |> Policy.withLists Union
+    let un = lawful |> Policy.withLists ListStrategy.Union
     Assert.Equal(Ok a, m un a a)

@@ -100,14 +100,14 @@ let ``ByKey lists: merged item fields and new items attributed`` () =
 
 [<Fact>]
 let ``FirstWins keeps the earlier source for kept values`` () =
-    let pol = Policy.withConflict FirstWins p
+    let pol = Policy.withConflict OnConflict.FirstWins p
     let _, prov = okL (layers pol [ "a", Obj [ "x", Int 1L ]; "b", Obj [ "x", Int 2L; "y", Int 3L ] ])
     Assert.Equal(Some "a", Map.tryFind "/x" prov)
     Assert.Equal(Some "b", Map.tryFind "/y" prov)
 
 [<Fact>]
 let ``conflicts carry both source names and paths and accumulate over layers`` () =
-    let pol = Policy.withConflict Fail p
+    let pol = Policy.withConflict OnConflict.Fail p
     let r =
         layers pol
             [ "org", Obj [ "a", Int 1L; "b", Int 1L ]
@@ -123,7 +123,7 @@ let ``conflicts carry both source names and paths and accumulate over layers`` (
 
 [<Fact>]
 let ``conflicts from different layers are all reported`` () =
-    let pol = Policy.withConflict Fail p
+    let pol = Policy.withConflict OnConflict.Fail p
     let cs = errL (layers pol [ "a", Obj [ "x", Int 1L; "y", Int 1L ]; "b", Obj [ "x", Int 2L ]; "c", Obj [ "y", Int 2L ] ])
     Assert.Equal<(string * string option * string option) list>(
         [ "/x", Some "a", Some "b"; "/y", Some "a", Some "c" ],
@@ -133,7 +133,7 @@ let ``conflicts from different layers are all reported`` () =
 let ``Resolve-provided conflicts get missing sources filled`` () =
     let pol =
         Policy.withConflict
-            (Resolve(fun path l r -> Error { Path = path; Left = l; Right = r; LeftSource = None; RightSource = Some "me"; Reason = "no" }))
+            (OnConflict.Resolve(fun path l r -> Error { Path = path; Left = l; Right = r; LeftSource = None; RightSource = Some "me"; Reason = "no" }))
             p
     let cs = errL (layers pol [ "a", Obj [ "x", Int 1L ]; "b", Obj [ "x", Int 2L ] ])
     Assert.Equal(Some "a", cs.Head.LeftSource)

@@ -36,13 +36,13 @@ let ``empty object is a two-sided identity`` () =
 
 [<Fact>]
 let ``identical values never conflict even under Fail`` () =
-    let fail = Policy.withConflict Fail p
+    let fail = Policy.withConflict OnConflict.Fail p
     let d = Obj [ "a", Int 1L; "t", Timestamp "2024-01-01T00:00:00Z"; "l", ints [ 1; 2 ]; "o", Obj [ "k", Str "v" ] ]
     Assert.Equal(d, ok (merge fail d d))
 
 [<Fact>]
 let ``no Int Float coercion`` () =
-    let fail = Policy.withConflict Fail p
+    let fail = Policy.withConflict OnConflict.Fail p
     let cs = conflicts (merge fail (Obj [ "n", Int 1L ]) (Obj [ "n", Float 1.0 ]))
     Assert.Equal(1, List.length cs)
     Assert.Equal<Path>([ Key "n" ], cs.Head.Path)
@@ -50,7 +50,7 @@ let ``no Int Float coercion`` () =
 
 [<Fact>]
 let ``timestamps compare by text and differ from strings`` () =
-    let fail = Policy.withConflict Fail p
+    let fail = Policy.withConflict OnConflict.Fail p
     let t = Timestamp "2024-01-01T00:00:00Z"
     Assert.Equal(t, ok (merge fail t t))
     Assert.Equal(1, List.length (conflicts (merge fail t (Timestamp "2024-01-01T00:00:00+00:00"))))
@@ -67,12 +67,12 @@ let ``LastWins takes overlay`` () =
 
 [<Fact>]
 let ``FirstWins keeps base but still adds new keys`` () =
-    let r = ok (merge (Policy.withConflict FirstWins p) a1 b2)
+    let r = ok (merge (Policy.withConflict OnConflict.FirstWins p) a1 b2)
     Assert.Equal(Obj [ "x", Int 1L; "keep", Bool true; "new", Bool false ], r)
 
 [<Fact>]
 let ``Fail reports the conflict with path, values and reason`` () =
-    let cs = conflicts (merge (Policy.withConflict Fail p) a1 b2)
+    let cs = conflicts (merge (Policy.withConflict OnConflict.Fail p) a1 b2)
     match cs with
     | [ c ] ->
         Assert.Equal<Path>([ Key "x" ], c.Path)
@@ -87,11 +87,11 @@ let ``type mismatch: LastWins overlay, FirstWins base, Fail conflict`` () =
     let a = Obj [ "k", Obj [ "x", Int 1L ] ]
     let b = Obj [ "k", Arr [ Int 1L ] ]
     Assert.Equal(b, ok (merge p a b))
-    Assert.Equal(a, ok (merge (Policy.withConflict FirstWins p) a b))
-    let cs = conflicts (merge (Policy.withConflict Fail p) a b)
+    Assert.Equal(a, ok (merge (Policy.withConflict OnConflict.FirstWins p) a b))
+    let cs = conflicts (merge (Policy.withConflict OnConflict.Fail p) a b)
     Assert.Equal("type mismatch: object vs array", cs.Head.Reason)
     // scalar vs container, and root level
-    Assert.Equal(1, List.length (conflicts (merge (Policy.withConflict Fail p) (Int 1L) (Obj []))))
+    Assert.Equal(1, List.length (conflicts (merge (Policy.withConflict OnConflict.Fail p) (Int 1L) (Obj []))))
     Assert.Equal(Obj [], ok (merge p (Int 1L) (Obj [])))
 
 [<Fact>]
@@ -102,7 +102,7 @@ let ``Resolve decides per path`` () =
             | [ Key "x" ], Int a, Int b -> Ok(Int(a + b))
             | _ ->
                 Error { Path = path; Left = l; Right = r; LeftSource = None; RightSource = None; Reason = "custom" }
-    let pol = Policy.withConflict (Resolve pick) p
+    let pol = Policy.withConflict (OnConflict.Resolve pick) p
     Assert.Equal(Obj [ "x", Int 3L ], ok (merge pol (Obj [ "x", Int 1L ]) (Obj [ "x", Int 2L ])))
     let cs = conflicts (merge pol (Obj [ "x", Int 1L; "y", Int 1L ]) (Obj [ "x", Int 2L; "y", Int 2L ]))
     Assert.Equal<string list>([ "custom" ], List.map (fun (c: Conflict) -> c.Reason) cs)
@@ -110,14 +110,14 @@ let ``Resolve decides per path`` () =
 
 [<Fact>]
 let ``Resolve is not called for identical values`` () =
-    let pol = Policy.withConflict (Resolve(fun _ _ _ -> failwith "called")) p
+    let pol = Policy.withConflict (OnConflict.Resolve(fun _ _ _ -> failwith "called")) p
     Assert.Equal(Obj [ "x", Int 1L ], ok (merge pol (Obj [ "x", Int 1L ]) (Obj [ "x", Int 1L ])))
 
 [<Fact>]
 let ``conflicts accumulate across the whole walk in document order`` () =
     let a = Obj [ "a", Int 1L; "n", Obj [ "b", Str "x"; "c", Int 1L ]; "l", ints [ 1 ] ]
     let b = Obj [ "a", Int 2L; "n", Obj [ "b", Str "y"; "c", Int 1L ]; "l", ints [ 2 ] ]
-    let cs = conflicts (merge (Policy.withConflict Fail p) a b)
+    let cs = conflicts (merge (Policy.withConflict OnConflict.Fail p) a b)
     Assert.Equal<string list>([ "/a"; "/n/b"; "/l" ], List.map (fun (c: Conflict) -> Path.print c.Path) cs)
 
 [<Fact>]
@@ -141,7 +141,7 @@ let ``NullDeletes true removes the key`` () =
 
 [<Fact>]
 let ``NullDeletes true ignores Fail and does not add absent null keys`` () =
-    let r = ok (merge (Policy.withConflict Fail p) (Obj [ "a", Int 1L ]) (Obj [ "a", Null; "n", Null ]))
+    let r = ok (merge (Policy.withConflict OnConflict.Fail p) (Obj [ "a", Int 1L ]) (Obj [ "a", Null; "n", Null ]))
     Assert.Equal(Obj [], r)
 
 [<Fact>]
@@ -149,7 +149,7 @@ let ``NullDeletes false keeps null as an ordinary value`` () =
     let pol = Policy.withNullDeletes false p
     let a = Obj [ "a", Int 1L; "b", Null ]
     Assert.Equal(Obj [ "a", Null; "b", Int 2L; "n", Null ], ok (merge pol a (Obj [ "a", Null; "b", Int 2L; "n", Null ])))
-    Assert.Equal(1, List.length (conflicts (merge (Policy.withConflict Fail pol) (Obj [ "a", Int 1L ]) (Obj [ "a", Null ]))))
+    Assert.Equal(1, List.length (conflicts (merge (Policy.withConflict OnConflict.Fail pol) (Obj [ "a", Int 1L ]) (Obj [ "a", Null ]))))
 
 [<Fact>]
 let ``Null outside object keys is ordinary even with NullDeletes`` () =
@@ -167,10 +167,10 @@ let ``Replace is the default and LastWins replaces`` () =
 [<Fact>]
 let ``Replace honours FirstWins and Fail`` () =
     let a, b = listDoc (ints [ 1 ]), listDoc (ints [ 2 ])
-    Assert.Equal(a, ok (merge (Policy.withConflict FirstWins p) a b))
-    let cs = conflicts (merge (Policy.withConflict Fail p) a b)
+    Assert.Equal(a, ok (merge (Policy.withConflict OnConflict.FirstWins p) a b))
+    let cs = conflicts (merge (Policy.withConflict OnConflict.Fail p) a b)
     Assert.Equal<Path>([ Key "l" ], cs.Head.Path)
-    Assert.Equal(a, ok (merge (Policy.withConflict Fail p) a a))
+    Assert.Equal(a, ok (merge (Policy.withConflict OnConflict.Fail p) a a))
 
 [<Fact>]
 let ``Append concatenates including duplicates`` () =
@@ -180,14 +180,14 @@ let ``Append concatenates including duplicates`` () =
 
 [<Fact>]
 let ``Union keeps first-seen order with structural equality`` () =
-    let pol = Policy.withLists Union p
+    let pol = Policy.withLists ListStrategy.Union p
     let a = listDoc (Arr [ Int 1L; Obj [ "k", Int 1L ]; Int 2L ])
     let b = listDoc (Arr [ Int 2L; Obj [ "k", Int 1L ]; Int 3L; Float 1.0; Int 3L ])
     Assert.Equal(listDoc (Arr [ Int 1L; Obj [ "k", Int 1L ]; Int 2L; Int 3L; Float 1.0 ]), ok (merge pol a b))
 
 [<Fact>]
 let ``ByKey merges same-key items, base first, new appended`` () =
-    let pol = Policy.withLists (ByKey "name") p
+    let pol = Policy.withLists (ListStrategy.ByKey "name") p
     let a = listDoc (Arr [ item "http" 1L; item "grpc" 2L ])
     let b = listDoc (Arr [ Obj [ "name", Str "new"; "v", Int 0L ]; Obj [ "name", Str "grpc"; "v", Int 20L; "x", Int 1L ] ])
     let expected =
@@ -196,13 +196,13 @@ let ``ByKey merges same-key items, base first, new appended`` () =
 
 [<Fact>]
 let ``ByKey item merge uses the policy (Fail on differing field)`` () =
-    let pol = Policy.withLists (ByKey "name") (Policy.withConflict Fail p)
+    let pol = Policy.withLists (ListStrategy.ByKey "name") (Policy.withConflict OnConflict.Fail p)
     let cs = conflicts (merge pol (listDoc (Arr [ item "a" 1L ])) (listDoc (Arr [ item "a" 2L ])))
     Assert.Equal<Path>([ Key "l"; Index 0; Key "v" ], cs.Head.Path)
 
 [<Fact>]
 let ``ByKey item missing the key or not an object is a conflict on either side`` () =
-    let pol = Policy.withLists (ByKey "name") p
+    let pol = Policy.withLists (ListStrategy.ByKey "name") p
     let good = listDoc (Arr [ item "a" 1L ])
     let noKey = listDoc (Arr [ Obj [ "v", Int 1L ] ])
     let scalar = listDoc (Arr [ Int 1L ])
@@ -220,14 +220,14 @@ let ``ByKey item missing the key or not an object is a conflict on either side``
 
 [<Fact>]
 let ``ByKey with empty lists`` () =
-    let pol = Policy.withLists (ByKey "name") p
+    let pol = Policy.withLists (ListStrategy.ByKey "name") p
     let a = listDoc (Arr [ item "a" 1L ])
     Assert.Equal(a, ok (merge pol a (listDoc (Arr []))))
     Assert.Equal(a, ok (merge pol (listDoc (Arr [])) a))
 
 [<Fact>]
 let ``ByKey duplicate overlay keys merge into one item`` () =
-    let pol = Policy.withLists (ByKey "name") p
+    let pol = Policy.withLists (ListStrategy.ByKey "name") p
     let r = ok (merge pol (listDoc (Arr [])) (listDoc (Arr [ item "a" 1L; Obj [ "name", Str "a"; "w", Int 2L ] ])))
     Assert.Equal(listDoc (Arr [ Obj [ "name", Str "a"; "v", Int 1L; "w", Int 2L ] ]), r)
 
@@ -243,8 +243,8 @@ let ``ListRules match the exact list path and override Lists`` () =
 [<Fact>]
 let ``ListRules on a nested path and withListRule replaces an earlier rule`` () =
     let path = [ Key "svc"; Key "ports" ]
-    let pol = p |> Policy.withListRule path ListStrategy.Append |> Policy.withListRule path Union
-    Assert.Equal<(Path * ListStrategy) list>([ path, Union ], pol.ListRules)
+    let pol = p |> Policy.withListRule path ListStrategy.Append |> Policy.withListRule path ListStrategy.Union
+    Assert.Equal<(Path * ListStrategy) list>([ path, ListStrategy.Union ], pol.ListRules)
     let a = Obj [ "svc", Obj [ "ports", ints [ 1 ] ] ]
     let b = Obj [ "svc", Obj [ "ports", ints [ 1; 2 ] ] ]
     Assert.Equal(Obj [ "svc", Obj [ "ports", ints [ 1; 2 ] ] ], ok (merge pol a b))
@@ -257,7 +257,7 @@ let ``ByKey rule applies to lists inside ByKey items`` () =
 
 [<Fact>]
 let ``Policy defaults`` () =
-    Assert.Equal(Replace, Policy.defaults.Lists)
+    Assert.Equal(ListStrategy.Replace, Policy.defaults.Lists)
     Assert.Empty(Policy.defaults.ListRules)
     Assert.True(Policy.defaults.NullDeletes)
-    Assert.True(match Policy.defaults.Conflict with LastWins -> true | _ -> false)
+    Assert.True(match Policy.defaults.Conflict with OnConflict.LastWins -> true | _ -> false)
