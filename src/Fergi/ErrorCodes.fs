@@ -11,3 +11,7 @@ module ErrorCodes =
     /// A `Test` op found a value different from the expected one.
     [<Literal>]
     let patchTestFailed = "patch.testFailed"
+
+    /// Two documents disagree under the active merge `Policy` (see `Conflict.toError`).
+    [<Literal>]
+    let mergeConflict = "merge.conflict"
