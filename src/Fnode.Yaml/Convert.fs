@@ -100,10 +100,20 @@ let ofNode (node: Node) : YamlValue =
         | Float f -> YamlValue.Float f
         | Str s -> YamlValue.String s
         | Timestamp s ->
+#if FABLE_COMPILER
+            // Fable's DateTimeOffset.TryParse ignores culture and styles; accept the shapes YamlValue itself
+            // resolves as timestamps instead.
+            match (if isYamlTimestampText s then YamlValue.Parse s else YamlValue.String s) with
+            | YamlValue.Timestamp t -> YamlValue.Timestamp t
+            | _ ->
+                // Not a parseable timestamp: keep the text (the emitter quotes it where needed).
+                YamlValue.String s
+#else
             match DateTimeOffset.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal) with
             | true, t -> YamlValue.Timestamp t
             // Not a parseable timestamp: keep the text (the emitter quotes it where needed).
             | false, _ -> YamlValue.String s
+#endif
         | Arr items -> YamlValue.Sequence(items |> List.map go |> Array.ofList)
         | Obj props ->
             YamlValue.Mapping(props |> List.map (fun (k, v) -> YamlValue.String k, go v) |> Array.ofList)

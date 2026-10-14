@@ -222,7 +222,12 @@ and [<Sealed>] internal JsonParser(s: string, maxDepth: int, track: bool) =
             while i < n && isDigit s.[i] do i <- i + 1
         let text = s.Substring(start, i - start)
         let asFloat () =
+#if FABLE_COMPILER
+            // Fable's Double.TryParse takes only the text (always invariant); `text` is already validated JSON.
+            let ok, f = Double.TryParse text
+#else
             let ok, f = Double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture)
+#endif
             if not ok || Double.IsInfinity f || Double.IsNaN f then
                 i <- start
                 raise (err "number out of range")
@@ -237,7 +242,11 @@ and [<Sealed>] internal JsonParser(s: string, maxDepth: int, track: bool) =
                     acc <- acc * 10L + int64 (int s.[k] - int '0')
                 JsonValue.Integer(if neg then -acc else acc)
             else
+#if FABLE_COMPILER
+                let ok, v = Int64.TryParse text
+#else
                 let ok, v = Int64.TryParse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture)
+#endif
                 if ok then JsonValue.Integer v else asFloat ()
 
     let literal (word: string) (v: JsonValue) : JsonValue =
@@ -369,7 +378,13 @@ and [<AbstractClass; Sealed>] internal JsonPrinter =
         if Double.IsNaN f || Double.IsInfinity f then
             "null"
         else
+#if FABLE_COMPILER
+            // Fable has no "R" format; its default ToString is already the shortest round-trip text.
+            // JS prints -0 as "0", so keep the sign explicitly.
+            let t = if f = 0.0 && 1.0 / f < 0.0 then "-0" else string f
+#else
             let t = f.ToString("R", CultureInfo.InvariantCulture)
+#endif
             if t.IndexOf('.') >= 0 || t.IndexOf('E') >= 0 || t.IndexOf('e') >= 0 then t else t + ".0"
 
     static member Write(sb: StringBuilder, v: JsonValue, indent: bool, level: int) : unit =
