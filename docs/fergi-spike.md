@@ -104,12 +104,13 @@ before 0.x if cheap, **P3** can follow in a minor version.
    xunit's `Assert.Equal` can bind to a sequence overload; the tests use
    `Assert.True((ptr "/team" = c.Path))` or `Assert.Equal<Path>`. Fix: make `Path` a single-case record/struct
    (`Path of Segment list`) with its own equality and `ToString`, or document `Assert.Equal<Path>`. **P3**.
-10. **The loader shape `string -> Result<Node, Error>` loses information.** It keeps only the first adapter
-    error (`Format.Parse` returns `Error list`) and drops `Parsed.Locations`. Consequences: a file with several
-    parse errors reports one, and merge conflicts carry source *names* but never `file:line`. Fix: loader type
-    `string -> Result<Parsed, Error list>` (or `Result<Node, Error list>` as the minimum) so Fergi can attach
-    locations to conflicts and keep every parse error. **P1** for Fergi's API (see follow-up [b]), but the Fnode
-    types already support it, so no Fnode change is needed beyond documenting the intended loader shape.
+10. **The loader shape `string -> Result<Node, Error>` lost information. Fixed (follow-up [b]).** It kept only
+    the first adapter error (`Format.Parse` returns `Error list`) and dropped `Parsed.Locations`. The loader is
+    now `Loader = string -> Result<Parsed, Error list>` (exactly `Format.Parse`'s result), so every parse error
+    survives (each prefixed `input 'x' (file): `, Path and Location kept) and merge conflicts are tied to
+    `file:line:col` when the source recorded a span for the conflict pointer (right source first, then left;
+    otherwise `Location = None`). No Fnode change was needed. `Loader.ofNodes` wraps in-memory nodes (empty
+    Locations) for tests. Limit: `Copy` `path.notFound` errors are not located (a missing path has no span).
 11. **Fable: expected-type union-case resolution differs from the .NET compiler.** Not an Fnode issue; see 5.
 
 ## 3. Fergi design findings and proposed amendments to `second-brain/Fergi.md`
@@ -239,8 +240,8 @@ Queued follow-ups (in suggested order):
 - **[a] `[<RequireQualifiedAccess>]` on `Op` and `ListStrategy`.** Removes the union-case clashes
   `Op.Append` / `ListStrategy.Append` and `Op.Set` / `Rule.Set`. Cost: about 38 test usages plus `Merge.fs`
   and `Policy.fs`; also removes the Fable expected-type workaround.
-- **[b] Loader signature change** to `string -> Result<Parsed, Error list>` (or a record) so conflicts can carry
-  `file:line` and all parse errors survive (friction item 10).
+- **[b] Loader signature change: done.** `string -> Result<Parsed, Error list>` so conflicts carry
+  `file:line:col` and all parse errors survive (friction item 10).
 - **[c] `Rule.Policy` / `Mapping.Policy`** so a mapping can pick `Conflict`, `NullDeletes`, default list
   strategy and `ListRules` (design finding in 3).
 - Fnode additions from section 2 marked P1 (`Path.*Segment`, `Node.setCreating`/`exists`/`tryFind`, NaN
