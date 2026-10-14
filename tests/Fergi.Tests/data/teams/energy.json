@@ -1,0 +1,9 @@
+{
+  "team": "energy",
+  "oncall": "energy-oncall@example.com",
+  "ports": [
+    { "name": "metrics", "port": 9091 }
+  ],
+  "labels": { "team": "energy" },
+  "logLevel": null
+}

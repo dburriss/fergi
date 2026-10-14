@@ -1,0 +1,16 @@
+# Service layer: highest priority.
+# Deliberate semantics shown here:
+#  - `replicas: 4` overrides the org default of 2 (so `defaultTo /replicas 2` is a no-op).
+#  - `ports` adds grpc and overrides http: same list, merged by name.
+#  - `labels.tier` overrides the org tier; `labels.team` from the team layer survives.
+#  - `lastReviewed` is a YAML timestamp: kept as Timestamp text and printed back verbatim.
+name: billing
+replicas: 4
+ports:
+  - name: grpc
+    port: 50051
+  - name: http
+    port: 8080
+labels:
+  tier: critical
+lastReviewed: 2026-10-14

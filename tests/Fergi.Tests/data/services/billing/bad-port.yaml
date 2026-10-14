@@ -1,0 +1,4 @@
+# Variant: a port item without `name` cannot be merged by key -> merge.conflict.
+name: billing
+ports:
+  - port: 1234

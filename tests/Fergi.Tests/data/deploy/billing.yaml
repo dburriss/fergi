@@ -1,0 +1,28 @@
+# Expected output, written by hand (not generated). Key order: layered keys in
+# first-seen order (org, then team/service additions), then keys the mapping created.
+replicas: 4
+resources:
+  limits:
+    cpu: 500m
+    memory: 256Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+ports:
+  - name: http
+    port: 8080
+  - name: metrics
+    port: 9091
+  - name: grpc
+    port: 50051
+labels:
+  tier: critical
+  team: energy
+name: billing
+lastReviewed: 2026-10-14
+metadata:
+  name: billing
+contacts:
+  oncall: energy-oncall@example.com
+owner: energy
+env: prod

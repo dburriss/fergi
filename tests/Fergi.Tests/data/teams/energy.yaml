@@ -1,0 +1,13 @@
+# Team layer: sits between org and service.
+# Deliberate semantics shown here:
+#  - `logLevel: null` DELETES the inherited key (Policy.NullDeletes = true), it does not set null.
+#  - `ports` overrides only the metrics item; http is untouched because lists merge by `name`.
+#  - `team` is renamed to `owner` and `oncall` is copied to /contacts/oncall by the mapping.
+team: energy
+oncall: energy-oncall@example.com
+ports:
+  - name: metrics
+    port: 9091
+labels:
+  team: energy
+logLevel: null

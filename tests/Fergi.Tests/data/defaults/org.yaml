@@ -1,0 +1,25 @@
+# Org-wide defaults: the lowest layer. Every service inherits these unless team or service says otherwise.
+# Deliberate semantics shown here:
+#  - `resources` uses a YAML anchor + merge key; the adapter expands them (the output has no anchors).
+#  - YAML comments are not preserved by Fnode.
+#  - `ports` is a list merged BY KEY (name) because the mapping says `listsBy /ports name`.
+#  - `internal` is org bookkeeping and is dropped from the output by the mapping.
+replicas: 2
+resources:
+  limits: &sizing
+    cpu: 500m
+    memory: 256Mi
+  requests:
+    <<: *sizing
+    cpu: 250m
+ports:
+  - name: http
+    port: 80
+  - name: metrics
+    port: 9090
+labels:
+  tier: standard
+logLevel: info
+internal:
+  costCentre: cc-1234
+  auditedBy: platform

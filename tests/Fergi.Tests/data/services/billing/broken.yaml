@@ -1,0 +1,4 @@
+# Variant: malformed YAML (unclosed flow sequence) to check error locations.
+name: billing
+ports: [ 1, 2
+replicas: 4

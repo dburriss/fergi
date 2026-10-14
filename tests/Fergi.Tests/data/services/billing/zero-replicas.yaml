@@ -1,0 +1,3 @@
+# Variant of service.yaml that violates the Ensure hook (replicas must be >= 1).
+name: billing
+replicas: 0
