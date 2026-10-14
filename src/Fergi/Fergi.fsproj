@@ -8,6 +8,7 @@
     <Compile Include="ErrorCodes.fs" />
     <Compile Include="Selector.fs" />
     <Compile Include="Doc.fs" />
+    <Compile Include="Patch.fs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Fnode/Fnode.fsproj" />
