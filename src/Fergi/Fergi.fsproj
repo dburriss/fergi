@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
+    <IsPackable>false</IsPackable>
+    <Description>Fergi: selectors, document operations and patches over the Fnode core. Pure and Fable-safe.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="ErrorCodes.fs" />
+    <Compile Include="Selector.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Fnode/Fnode.fsproj" />
+  </ItemGroup>
+</Project>
