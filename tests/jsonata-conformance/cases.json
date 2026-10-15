@@ -349,7 +349,7 @@
      "code": "ArgumentException"
     }
    },
-   "note": "On a non-BMP character .NET splits the surrogate pair (here it throws ArgumentException); JS and Python return the character."
+   "note": "On a non-BMP character .NET splits the surrogate pair and returns a string holding half of it (an invalid string). JS and Python return the whole character. The .NET runner records an error only because that string cannot be written as JSON text; through Fergi.run the result is a silently corrupt string, not an exception."
   },
   {
    "id": "upper-unicode",

@@ -225,7 +225,9 @@ module Fergi =
                 (Ok [])
         args
         |> Result.bind (fun vs ->
-            match (Map.find c.Fn fns) vs with
+            // the contract says a function does not throw; a buggy one must still not take the run down
+            let called = try (Map.find c.Fn fns) vs with e -> Error("threw: " + e.Message)
+            match called with
             | Ok v -> Ok v
             | Error msg ->
                 Error(

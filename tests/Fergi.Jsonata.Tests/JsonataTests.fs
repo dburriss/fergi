@@ -131,3 +131,28 @@ let ``yaml in, jsonata compute, yaml out`` () =
         Assert.Contains("fullName: Ada Lovelace", text)
         Assert.Contains("2026-01-02T03:04:05Z", text)
         Assert.Contains("9007199254740993", text)
+
+let private runExpr (expr: string) (doc: Node) =
+    let m =
+        Mapping.create [ "d" ] [
+            Rule.Compute { Fn = "jsonata"; Args = [ Arg.Literal(Str expr); Arg.Input("d", sel "") ]; Dest = sel "/out" } ]
+        |> Jsonata.register
+    let f = { Inputs = Map.ofList [ "d", "d" ]; InputLists = Map.empty; Output = "o" }
+    Fergi.run m f (Loader.ofNodes (Map.ofList [ "d", doc ]))
+
+[<Fact>]
+let ``an expression that returns a function is an error, not a crash`` () =
+    match runExpr "function($x){ $x }" (Obj []) with
+    | Error [ e ] ->
+        Assert.Equal(ErrorCodes.computeFailed, e.Code)
+        Assert.Contains(("function", "jsonata"), e.Context)
+        Assert.Contains("function", e.Message)
+    | other -> failwithf "unexpected %A" other
+
+[<Fact>]
+let ``a jsonata error keeps its code in the message`` () =
+    match runExpr "$number('x')" (Obj []) with
+    | Error [ e ] ->
+        Assert.Equal(ErrorCodes.computeFailed, e.Code)
+        Assert.Contains("D3030", e.Message)
+    | other -> failwithf "unexpected %A" other

@@ -56,7 +56,7 @@ Avoid these in a mapping that must behave the same everywhere.
 | Integers above 2^53 | JS rounds them (they are doubles). Python and .NET keep them exact on the way through, but arithmetic is double in JS and Python and exact 64-bit in .NET. |
 | `$string` of a non-integer | 15 significant digits in JS and Python, 16 in .NET (`0.333333333333333` vs `0.3333333333333333`). |
 | Whole floats from the input | `$string(2.0)` is `"2"` in JS and Python, `"2.0"` in .NET. |
-| Non-BMP characters (emoji) | `$length` is 3 for `a😀b` in JS and Python and 4 in .NET (UTF-16 units). `$substring` can split the pair: .NET throws. |
+| Non-BMP characters (emoji) | `$length` is 3 for `a😀b` in JS and Python and 4 in .NET (UTF-16 units). `$substring` can split the pair: .NET returns half of it, an invalid string, without an error. |
 | Case mapping | `$uppercase("straße")` is `STRASSE` in JS and Python, `STRAßE` in .NET. |
 | `$sort` with equal keys | Python does not keep the input order; JS and .NET do. |
 | `$number("NaN")` | JS and .NET raise D3030, Python returns NaN. `$number("x")` is D3030 in JS and .NET but a plain `ValueError` in Python. |

@@ -194,3 +194,21 @@ let ``builtins reject bad arguments`` () =
     Assert.True(Result.isError (call "toInt" [ Str "99999999999999999999" ]))
     Assert.Equal(Ok(Int -5L), call "toInt" [ Str "-5" ])
     Assert.Equal(Ok(Str "a-1-true"), call "join" [ Str "-"; Str "a"; Int 1L; Bool true ])
+
+[<Fact>]
+let ``a function that throws is compute.failed, not an exception`` () =
+    let boom : Function = fun _ -> failwith "boom"
+    let m =
+        mapping {
+            inputs [ "person" ]
+            compute "/x" "boom" [ Ptr "person:/first" ]
+        }
+        |> mustMapping
+        |> Mapping.withFunction "boom" boom
+    match run m personDocs with
+    | Error [ e ] ->
+        Assert.Equal(ErrorCodes.computeFailed, e.Code)
+        Assert.Contains("boom", e.Message)
+        Assert.Contains(("function", "boom"), e.Context)
+        Assert.Contains(("dest", "/x"), e.Context)
+    | other -> failwithf "unexpected %A" other
