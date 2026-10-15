@@ -563,3 +563,12 @@ let ``policy rule order relative to Layer does not matter`` () =
     Assert.Equal(ok1, ok2)
     // NullDeletes=false makes the null an ordinary value, so FirstWins keeps the base "x" (not deleted)
     Assert.Equal(Ok(Str "x"), Doc.get (sel "/gone") ok1)
+
+[<Fact>]
+let ``Mapping.validate reports names without Files or a loader`` () =
+    let sel s = (Selector.parse s |> Result.defaultWith (fun _ -> failwith "selector"))
+    let m =
+        Mapping.create [ "a" ] [ Rule.Layer [ "a"; "zzz" ]; Rule.Compute { Fn = "nope"; Args = []; Dest = sel "/x" } ]
+    let codes = Mapping.validate m |> List.map (fun e -> e.Code) |> List.sort
+    Assert.Equal<string list>([ ErrorCodes.mappingFunctionUnknown; ErrorCodes.mappingInputUnknown ], codes)
+    Assert.Empty(Mapping.validate (Mapping.create [ "a" ] [ Rule.Layer [ "a" ] ]))

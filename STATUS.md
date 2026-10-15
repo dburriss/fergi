@@ -2,7 +2,7 @@
 
 Snapshot of the Fnode / Fergi work. Design sources live in the `second-brain` vault: `Shared Document Core Design.md` (Fnode, the shared core) and `Fergi.md` (the merge/mapping library). Findings from the spike are in `docs/fergi-spike.md`; Fable notes are in `docs/fable.md`; how the pieces fit is in `ARCHITECTURE.md`; larger decisions with their rejected alternatives are in `DECISIONS.md`; rules for coding agents are in `AGENTS.md`.
 
-Last verified: 2026-10-15. `dotnet build Fergi.slnx -c Release` has 0 warnings. `dotnet test Fergi.slnx -c Release` passes 730 tests. `scripts/fable-test.sh all` passes 698 entries on Fable JS and on Fable Python. Nothing is published.
+Last verified: 2026-10-15. `dotnet build Fergi.slnx -c Release` has 0 warnings. `dotnet test Fergi.slnx -c Release` passes 732 tests. `scripts/fable-test.sh all` passes 699 entries on Fable JS and on Fable Python. Nothing is published.
 
 ## Delivery plan (from the Fnode design doc)
 
@@ -30,7 +30,7 @@ Last verified: 2026-10-15. `dotnet build Fergi.slnx -c Release` has 0 warnings. 
 | `tests/jsonata-conformance` | 90 JSONata expressions run through the .NET, JS and Python libraries with recorded expectations (73 portable, 17 divergent). `scripts/jsonata-conformance.sh` runs it |
 | `scripts/fable-test.sh` | Runs the shared test sources under Fable JS and Python (`js`, `python` or `all`) |
 
-Test counts on .NET: Fnode 30, JsonValue 323, Fnode.Json 11, Fnode.Yaml 57, Conformance 47, Fergi 247, Fergi.Jsonata 15. Fable runs 698 entries per target (Conformance counts differently there, every case still runs).
+Test counts on .NET: Fnode 30, JsonValue 323, Fnode.Json 11, Fnode.Yaml 57, Conformance 47, Fergi 248, Fergi.Jsonata 16. Fable runs 699 entries per target (Conformance counts differently there, every case still runs).
 
 ## Decisions made
 
@@ -85,7 +85,7 @@ Full detail and proposed fixes are in `docs/fergi-spike.md`.
     - [ ] `uniqueBy` and a keyed-object output for aggregation.
 6. [ ] Update the `second-brain` notes with the amendments listed in `docs/fergi-spike.md` (`Policy.ListRules`, `Doc.get` returning `Result`, `Policy.defaults`, the `Where` selector, the Rule policy cases, the merge-law caveat), plus `Rule.Compute`, `Arg`, the `Functions` registry on `Mapping` and the JSONata decision (see `DECISIONS.md`), which change the "`Rule` is plain data" story in `Fergi.md`. `docs/fergi-spike.md` has no section on computed values yet either. Nothing in the vault was edited by this work.
 7. [x] **Serialised mapping format**: `Mapping.toNode` / `ofNode` / `ofParsed` in `src/Fergi/Mapping.fs`, JSON or YAML text through the adapters, `version` 1, one-key rules, tagged arguments (`{from}`, `{doc}`, `{value}`), a JSON Schema in `docs/mapping.schema.json`. Round trips and runs from a file are tested through JSON and YAML text on .NET, Fable JS and Python. Reading reports every problem with a path (a line and column through `ofParsed`). Writing returns one `mapping.notSerialisable` error per offender (`Ensure` hook, host function, a path that does not read back). Shape in `ARCHITECTURE.md`, reasoning in `DECISIONS.md`. The schema is checked against the reader by `scripts/mapping-schema.sh` (`tests/mapping-schema`: 9 valid and 33 invalid case files plus the files `toNode` writes; the schema and `ofParsed` must agree on every one). It found two gaps (bad `~` escapes) that are fixed.
-8. [ ] A standalone `Mapping.validate` that a generating program can call before writing a file: unknown function names, input names, and JSONata syntax (`JsonataQuery` already reports a position). Today validation only runs inside `run`.
+8. [x] **`Mapping.validate`** (`src/Fergi/Mapping.fs`): checks a mapping without `Files` or a loader, for a program that generates mapping files. It reports every problem: undeclared input names, an `inputList` used outside `Collect`, a `Collect` entry reading another input, a second `Layer`, `Conflict` or `NullDeletes` rule, and unknown function names against `m.Functions`. `Fergi.run` calls it too. `Jsonata.validate` (`Fergi.Jsonata`, .NET only) adds the syntax of every `jsonata` rule whose expression is a literal string (`compute.failed`, with the library's message and the context `rule`, `function`, `expression`). Not done: it does not yet tell portable functions from ones that exist only where registered (item 14), and the JSONata check has no Fable binding (item 11).
 9. [ ] JSONata in the builders: an `Arg.Inputs` case (all inputs as one object, keyed by input name, plus `$doc` for the output so far) and a `jsonata` custom operation that also registers the function. The builder's `Run` fills `Functions.builtins` today, so it needs a way to add to the registry. A whole-output `Rule.Transform` (JSONata builds the document) was discussed and deliberately left out.
 10. [ ] JSONata errors:
     - [x] Exceptions from the library and non-value results (a function) are `compute.failed`. A thrown exception from any registered function is also caught by `Rule.Compute`.

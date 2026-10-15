@@ -107,8 +107,8 @@ rules:
   reads them. A top-level `$schema` key is accepted and ignored.
 - **Reading reports every problem it finds**, each with the `Path` of the place in the file (and, through
   `ofParsed`, the line and column). It checks shape, types and selector syntax. It does not check that input
-  and function names are declared: `Fergi.run` does, and the standalone `Mapping.validate` (`STATUS.md` Next,
-  item 8) will.
+  and function names are declared: `Fergi.run` does, and the standalone `Mapping.validate` does (`Jsonata.validate`
+  adds expression syntax on .NET).
 - **Writing fails, listing every offender, when the mapping holds something a file cannot say**
   (`mapping.notSerialisable`): an `Ensure` hook (code), a function registered with `Mapping.withFunction` (it
   runs only in the process that registered it; the built-ins and the name `jsonata` are written by name, and

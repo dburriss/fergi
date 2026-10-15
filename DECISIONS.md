@@ -35,7 +35,7 @@ thing, rather than at run time.
 Rejected: a `type` field inside each rule (`{type: copy, ...}`): same information, more room for a missing or
 misspelled tag. Silently dropping hooks and host functions: the written file would run differently from the
 mapping. Checking input and function names in `ofNode`: the names are validated at run, and a reader that
-needs the registry cannot be a plain decoder; a standalone `Mapping.validate` is the place (`STATUS.md`).
+needs the registry cannot be a plain decoder; `Mapping.validate` is the place.
 
 Costs: the field names are now a public contract (bump `version` to change them). `Files` has no file form yet.
 

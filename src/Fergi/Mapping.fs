@@ -478,3 +478,80 @@ module Mapping =
                 )
             )
         | _ -> Error(hooks @ errorsOf rules)
+
+    let private err code msg = Error.create code msg []
+
+    /// Check a mapping without any files: every input a rule reads is declared (`mapping.inputUnknown`), an
+    /// `inputList` is used only inside `Collect`, a `Collect` entry stays inside its own input, at most one
+    /// `Layer`, `Conflict` and `NullDeletes` rule (`mapping.invalid`), and every `Compute` names a function in
+    /// `m.Functions` (`mapping.functionUnknown`). Reports every problem, not just the first. `Fergi.run` does
+    /// this (plus the `Files` checks) before any file is loaded. A JSONata expression's syntax is checked by
+    /// `Jsonata.validate` in `Fergi.Jsonata`, since core has no JSONata.
+    let validate (m: Mapping) : Error list =
+        let declared = m.Inputs
+        let lists = m.InputLists
+        let clash =
+            declared
+            |> List.filter (fun n -> List.contains n lists)
+            |> List.map (fun n -> err ErrorCodes.mappingInvalid ("'" + n + "' is declared as both an input and an inputList"))
+        // a name used by a Layer or a top-level Copy must be a single-file input
+        let usedSingle (names: string list) =
+            names
+            |> List.distinct
+            |> List.collect (fun n ->
+                if List.contains n declared then []
+                elif List.contains n lists then
+                    [ err ErrorCodes.mappingInvalid ("'" + n + "' is an inputList; it can only be used inside Collect") ]
+                else [ err ErrorCodes.mappingInputUnknown ("Rule refers to undeclared input '" + n + "'") ])
+        let argInputs (args: Arg list) =
+            args |> List.choose (fun a -> match a with Arg.Input(n, _) -> Some n | _ -> None)
+        let usedByRule (r: Rule) =
+            match r with
+            | Rule.Layer ns -> ns
+            | Rule.Copy((n, _), _) -> [ n ]
+            | Rule.Compute c -> argInputs c.Args
+            | _ -> []
+        let unknownRules = m.Rules |> List.collect usedByRule |> usedSingle
+        let collects =
+            m.Rules
+            |> List.collect (fun r ->
+                match r with
+                | Rule.Collect c ->
+                    let own =
+                        if List.contains c.Input lists then []
+                        else [ err ErrorCodes.mappingInputUnknown ("Collect refers to undeclared inputList '" + c.Input + "'") ]
+                    let entry =
+                        c.Entry
+                        |> List.collect (fun er ->
+                            match er with
+                            | Rule.Copy((n, _), _) when n <> c.Input ->
+                                [ err ErrorCodes.mappingInvalid ("Collect '" + c.Input + "': an entry can only Copy from '" + c.Input + "', not '" + n + "'") ]
+                            | Rule.Compute cs when argInputs cs.Args |> List.exists (fun n -> n <> c.Input) ->
+                                [ err ErrorCodes.mappingInvalid ("Collect '" + c.Input + "': an entry can only read arguments from '" + c.Input + "'") ]
+                            | Rule.Copy _ | Rule.Rename _ | Rule.DefaultTo _ | Rule.Set _ | Rule.Drop _ | Rule.Compute _ -> []
+                            | _ -> [ err ErrorCodes.mappingInvalid ("Collect '" + c.Input + "': " + "this rule is not allowed inside an entry") ])
+                    own @ entry
+                | _ -> [])
+        let atMostOne (name: string) (isIt: Rule -> bool) =
+            if (m.Rules |> List.filter isIt |> List.length) > 1 then
+                [ err ErrorCodes.mappingInvalid ("At most one " + name + " rule is allowed") ]
+            else []
+        let multi =
+            atMostOne "Layer" (fun r -> match r with Rule.Layer _ -> true | _ -> false)
+            @ atMostOne "Conflict" (fun r -> match r with Rule.Conflict _ -> true | _ -> false)
+            @ atMostOne "NullDeletes" (fun r -> match r with Rule.NullDeletes _ -> true | _ -> false)
+        let rec computes (rules: Rule list) =
+            rules
+            |> List.collect (fun r ->
+                match r with
+                | Rule.Compute c -> [ c.Fn ]
+                | Rule.Collect c -> computes c.Entry
+                | _ -> [])
+        let unknownFns =
+            computes m.Rules
+            |> List.distinct
+            |> List.filter (fun n -> not (Map.containsKey n m.Functions))
+            |> List.map (fun n ->
+                err ErrorCodes.mappingFunctionUnknown ("Compute calls unknown function '" + n + "'")
+                |> Error.withContext "function" n)
+        clash @ unknownRules @ collects @ multi @ unknownFns

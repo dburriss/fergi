@@ -156,3 +156,19 @@ let ``a jsonata error keeps its code in the message`` () =
         Assert.Equal(ErrorCodes.computeFailed, e.Code)
         Assert.Contains("D3030", e.Message)
     | other -> failwithf "unexpected %A" other
+
+[<Fact>]
+let ``validate reports a bad expression and an unknown function`` () =
+    let sel s = (Selector.parse s |> Result.defaultWith (fun _ -> failwith "selector"))
+    let rule expr = Rule.Compute { Fn = "jsonata"; Args = [ Arg.Literal(Str expr) ]; Dest = sel "/x" }
+    let good = Mapping.create [] [ rule "first & last" ] |> Jsonata.register
+    Assert.Empty(Jsonata.validate good)
+    let bad = Mapping.create [] [ rule "first &"; rule "ok" ] |> Jsonata.register
+    match Jsonata.validate bad with
+    | [ e ] ->
+        Assert.Equal(ErrorCodes.computeFailed, e.Code)
+        Assert.Contains(("rule", "0"), e.Context)
+    | es -> failwithf "expected one error, got %A" es
+    // not registered: the name is unknown (Mapping.validate), the syntax is still checked
+    let unregistered = Mapping.create [] [ rule "first &" ]
+    Assert.Equal(2, List.length (Jsonata.validate unregistered))

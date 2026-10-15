@@ -78,3 +78,31 @@ module Jsonata =
 
     /// Make `jsonata` callable from the mapping's `Compute` rules.
     let register (m: Mapping) : Mapping = Mapping.withFunction "jsonata" jsonata m
+
+    /// `Mapping.validate` plus the syntax of every `jsonata` rule whose expression is a literal string (also
+    /// inside `Collect` entries). A bad expression is a `compute.failed` error carrying the library's message
+    /// (which names the position) and the context `function`, `rule` (index) and `expression`. An expression
+    /// that is not a literal is not checked.
+    let validate (m: Mapping) : Error list =
+        let syntax (expr: string) : string option =
+            try
+                JsonataQuery(expr) |> ignore
+                None
+            with e -> Some e.Message
+        let rec check (prefix: string) (rules: Rule list) : Error list =
+            rules
+            |> List.mapi (fun i r ->
+                let at = prefix + string i
+                match r with
+                | Rule.Compute { Fn = "jsonata"; Args = Arg.Literal(Str expr) :: _ } ->
+                    match syntax expr with
+                    | Some msg ->
+                        [ Error.create ErrorCodes.computeFailed ("Invalid JSONata expression: " + msg) []
+                          |> Error.withContext "function" "jsonata"
+                          |> Error.withContext "rule" at
+                          |> Error.withContext "expression" expr ]
+                    | None -> []
+                | Rule.Collect c -> check (at + ".") c.Entry
+                | _ -> [])
+            |> List.concat
+        Mapping.validate m @ check "" m.Rules
