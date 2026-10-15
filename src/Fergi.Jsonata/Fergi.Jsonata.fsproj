@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <Description>JSONata expressions for Fergi mappings (spike). .NET only: it wraps Jsonata.Net.Native, so it stays out of the Fable-safe core.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Jsonata.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Jsonata.Net.Native" Version="3.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Fergi/Fergi.fsproj" />
+  </ItemGroup>
+</Project>
