@@ -1,0 +1,1 @@
+{ "version": 1, "inputs": ["a"], "rules": [ { "copy": { "from": "a:/a~1b/c~0d", "to": "/x~1y" } } ] }

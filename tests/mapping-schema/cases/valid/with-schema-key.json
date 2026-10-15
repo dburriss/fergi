@@ -1,0 +1,1 @@
+{ "$schema": "../../../docs/mapping.schema.json", "version": 1, "inputs": ["a"], "rules": [ { "drop": { "path": "/x" } } ] }

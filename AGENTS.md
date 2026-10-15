@@ -14,6 +14,7 @@ Run what covers your change and report the result as it is (a failing test is a 
 - `dotnet build Fergi.slnx -c Release` (expect 0 warnings)
 - `dotnet test Fergi.slnx -c Release`
 - `scripts/fable-test.sh all` (Fable JS and Python; the shared test sources must also pass there)
+- `scripts/mapping-schema.sh` if you touch the mapping file form (`Mapping.toNode`/`ofNode`) or `docs/mapping.schema.json`
 - `scripts/jsonata-conformance.sh` if you touch anything JSONata (see `tests/jsonata-conformance/README.md`)
 
 ## Running things

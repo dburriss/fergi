@@ -1,0 +1,1 @@
+{ "version": 1, "inputs": [], "inputLists": ["svc"], "rules": [ { "collect": { "input": "svc", "into": "/services", "sortBy": "/name", "entry": [ { "copy": { "from": "svc:/name", "to": "/name" } }, { "compute": { "to": "/n", "fn": "upper", "args": [ { "from": "svc:/name" } ] } } ] } } ] }

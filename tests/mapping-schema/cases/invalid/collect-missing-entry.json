@@ -1,0 +1,1 @@
+{ "version": 1, "inputs": [], "inputLists": ["s"], "rules": [ { "collect": { "input": "s", "into": "/x" } } ] }

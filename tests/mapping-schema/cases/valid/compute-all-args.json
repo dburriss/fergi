@@ -1,0 +1,1 @@
+{ "version": 1, "inputs": ["a"], "rules": [ { "compute": { "to": "/x", "fn": "join", "args": [ { "value": null }, { "value": { "k": [1, 2.5, true] } }, { "from": "a:/p/[name=http]/port" }, { "doc": "/y" } ] } } ] }

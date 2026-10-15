@@ -1,0 +1,1 @@
+{ "version": 1, "inputs": [], "rules": [ { "listsBy": { "path": "/a~", "key": "k" } } ] }

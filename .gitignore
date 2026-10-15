@@ -66,3 +66,4 @@ node_modules/
 *.pyc
 *.generated.fs
 tests/jsonata-conformance/observed/
+tests/mapping-schema/observed/

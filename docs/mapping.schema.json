@@ -25,17 +25,17 @@
     "selector": {
       "description": "A JSON Pointer, where a segment written [key=value] picks the array item whose string field key equals value. The empty string is the root.",
       "type": "string",
-      "pattern": "^(/.*)?$"
+      "pattern": "^(/([^/~]|~[01])*)*$"
     },
     "pointer": {
       "description": "A plain JSON Pointer (RFC 6901).",
       "type": "string",
-      "pattern": "^(/.*)?$"
+      "pattern": "^(/([^/~]|~[01])*)*$"
     },
     "source": {
       "description": "input:/pointer, a selector into the named input.",
       "type": "string",
-      "pattern": "^[^:]+:(/.*)?$"
+      "pattern": "^[^:]+:(/([^/~]|~[01])*)*$"
     },
     "arg": {
       "description": "One argument of a compute rule: from (a value in a named input), doc (a value in the document built so far) or value (a fixed value).",
