@@ -28,3 +28,15 @@ module ErrorCodes =
     /// An `Ensure` hook rejected the result.
     [<Literal>]
     let ensureFailed = "ensure.failed"
+
+    /// A `Collect` rule could not order its entries (a file lacks the `SortBy` field, or the values
+    /// are not all strings or all numbers).
+    [<Literal>]
+    let collectSortKey = "collect.sortKey"
+
+    /// A `Compute` rule names a function that is not in the mapping's registry.
+    [<Literal>]
+    let mappingFunctionUnknown = "mapping.functionUnknown"
+    /// A function called by a `Compute` rule rejected its arguments.
+    [<Literal>]
+    let computeFailed = "compute.failed"

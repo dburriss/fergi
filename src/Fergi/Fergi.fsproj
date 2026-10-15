@@ -11,8 +11,10 @@
     <Compile Include="Merge.fs" />
     <Compile Include="Doc.fs" />
     <Compile Include="Patch.fs" />
+    <Compile Include="Functions.fs" />
     <Compile Include="Mapping.fs" />
     <Compile Include="Run.fs" />
+    <Compile Include="Builders.fs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Fnode/Fnode.fsproj" />

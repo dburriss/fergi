@@ -38,7 +38,7 @@ let private loader (docs: Map<string, Node>) =
         inner p
     load, calls
 
-let files = { Inputs = Map.ofList [ "org", "org.yaml"; "service", "svc.yaml" ]; Output = "out.yaml" }
+let files = { InputLists = Map.empty; Inputs = Map.ofList [ "org", "org.yaml"; "service", "svc.yaml" ]; Output = "out.yaml" }
 
 let private mk rules = Mapping.create [ "org"; "service" ] rules
 

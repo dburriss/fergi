@@ -20,10 +20,11 @@ Compile order and content:
 | 1/2 | `Doc.fs` | `Doc.get/set/remove` (selector-addressed Fnode ops), `Doc.merge`, `Doc.layers` |
 | 1 | `Patch.fs` | `Op = Set | Remove | Append | Move | Test` (qualified access only), atomic `Patch.apply`, `Patch.diff` |
 | 4 | `Mapping.fs` | `ConflictMode`, `Rule` (incl. `Conflict`, `NullDeletes`), `Mapping`, `Files`, `SourcePath.parse` (`service:/name`), `Mapping.create/ensure/copy` |
-| 4 | `Run.fs` | `Fergi.run`, `Fergi.plan` (`{ Output; Result; Ops; Provenance }`), `Fergi.runFiles` |
+| 4 | `Run.fs` | `Fergi.run`, `Fergi.plan` (`{ Output; Result; Ops; Provenance }`), `Fergi.runFiles`, `Rule.Collect` execution |
+| 4 | `Builders.fs` | the computation expressions `ops`, `docs`, `files`, `entry`, `mapping` (custom operations, `and!`); see section 7 |
 
 Levels: 0 selectors, 1 `Doc` + `Patch`, 2 `Policy` + merge + layers + provenance, 4 (data form) `Mapping` + `run`/`plan`.
-Computation expressions (level 3, and the CE form of level 4) were cut (see 6).
+Computation expressions and aggregation (`Rule.Collect`, `inputList`) were added after the spike (see 7).
 
 Tests: `tests/Fergi.Tests`, 159 tests (xUnit 2.9.2 + FsCheck.Xunit 2.16.6):
 
@@ -245,9 +246,8 @@ existing xunit/FsCheck shims.
 
 Cut from the spike (the plan's out-of-scope list):
 
-- Computation expressions: `ops { }`, `docs { }`, `mapping { }`, custom operations, `and!`.
+- ~~Computation expressions~~ and ~~aggregation~~: added after the spike, see 7.
 - Three-way merge (use case 5, base/ours/theirs).
-- Aggregation `each` / `inputs` globs (use case 6); `Fergi.runFiles` takes an explicit input list only.
 - Comment preservation (the YAML adapter drops comments; anchors are expanded).
 - Writing files: core never writes; `run` returns `Map<output, Node>` and the caller prints and writes.
 
@@ -269,3 +269,24 @@ Queued follow-ups (in suggested order):
 - **[d] Fnode P1 and P2 additions: done** (section 2 items 1-4 and 6-8). Fergi dropped `Selector.escape`/`unescape`,
   `isAbsent` and `hasDuplicates`; its `setCreating` is now a thin op-list builder over `Node.exists`. Items 5 and 9
   stay P3 (documentation only).
+
+## 7. Computation expressions and aggregation (added after the spike)
+
+- **Builders** (`src/Fergi/Builders.fs`, `[<AutoOpen>]`): `ops { }` (an `Op list`), `docs { }` (`Result<_, Error list>`
+  whose `and!` accumulates every source's errors), `files { input; inputList; output }`, `entry { copy; rename;
+  defaultTo; set; drop }` and `mapping { inputs; inputList; layer; listsBy; conflict; nullDeletes; copy; rename;
+  defaultTo; set; drop; ensure; each; sortBy }`. They only produce the plain data forms, so everything stays
+  writable without them. `docs` needs no `load` helper: a `Loader` already is `string -> Result<Parsed, Error list>`.
+- **`mapping` returns `Result<Mapping, Error list>`**, because pointer strings are parsed as rules are added. Every
+  bad pointer is collected (`path.invalid`); nothing throws. `Fergi.run` still takes a plain `Mapping`.
+- **Aggregation**: `inputList` names an input that stands for a list of files (`Mapping.InputLists`,
+  `Files.InputLists`); core never expands globs. `Rule.Collect { Input; Into; Entry; SortBy }` builds one entry per
+  file by running `Entry` (the ordinary rules) over an empty object with the file bound to the input name, sorts
+  by `SortBy` (stable; all strings, all ints or all floats, else `collect.sortKey`), and sets the list at `Into`.
+  `each "repos" "/services" (fun r -> entry { copy (r "/name") "/name" })`, then `sortBy "/name"`.
+- **Errors**: all load errors of every file are reported (`input`, `file`, `index` context). A missing field in one
+  file is an error naming the file and index (strict; an optional copy is not built). A `Layer` or top-level `Copy`
+  that names an `inputList`, or an entry that copies from another input, is `mapping.invalid`.
+- **Not done**: provenance for entries, `uniqueBy`, an object keyed by a field instead of a list, three-way merge.
+- **Fable**: custom operations and `and!` (`MergeSources`/`BindReturn`) compile and pass on JS and Python with no
+  `#if` (see `docs/fable.md`).

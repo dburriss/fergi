@@ -52,17 +52,54 @@ type Rule =
     | Set of SelectorPath * Node
     /// Remove the path. Dropping an absent path is a no-op.
     | Drop of SelectorPath
+    /// Aggregation: build one entry per file of the `inputList` and set the resulting list at `Into`.
+    | Collect of CollectSpec
+    /// Call the registered function `Fn` on the evaluated `Args` and set the result at `Dest`.
+    /// Only the function's name is stored, so the rule stays serialisable.
+    | Compute of ComputeSpec
+
+/// Where one argument of a `Compute` comes from.
+and [<RequireQualifiedAccess>] Arg =
+    /// The value at `input:/selector` in the NAMED input (like `Copy`). `path.notFound` if absent.
+    | Input of string * SelectorPath
+    /// The value at this selector in the document being built, as it is at this point of the run.
+    | Doc of SelectorPath
+    /// A fixed value.
+    | Literal of Node
+
+/// `Fn` names an entry of `Mapping.Functions` (the built-ins are in `Functions.builtins`).
+and ComputeSpec =
+    { Fn: string
+      Args: Arg list
+      Dest: SelectorPath }
+
+/// How one `inputList` becomes a list. Every file of `Input` is run through `Entry` (starting from an
+/// empty object, the file bound to the name `Input`) to make one entry; `SortBy` then orders the entries
+/// by that field (a stable sort, files keep their order otherwise). `Entry` may hold `Copy` (whose source
+/// name must be `Input`), `Rename`, `DefaultTo`, `Set` and `Drop`.
+and CollectSpec =
+    { Input: string
+      Into: SelectorPath
+      Entry: Rule list
+      SortBy: SelectorPath option }
 
 /// `Ensure` is a field rather than a `Rule` so `Rule` stays plain data.
+/// `Inputs` name single files, `InputLists` name inputs that stand for a list of files (see `Rule.Collect`).
 type Mapping =
     { Inputs: string list
+      InputLists: string list
       Rules: Rule list
-      Ensure: (string * (Node -> Result<unit, Error list>)) list }
+      Ensure: (string * (Node -> Result<unit, Error list>)) list
+      /// The functions `Rule.Compute` may call by name. Kept beside the rules, not in them, so `Rule` stays
+      /// plain data; a mapping read from a file gets the registry it runs with.
+      Functions: Map<string, Function> }
 
 /// Where the inputs live and where the output goes. Core never reads or writes: these are
 /// opaque strings handed to the injected loader (and used as the key of the result).
+/// `InputLists` binds each `Mapping.InputLists` name to its files, in order.
 type Files =
     { Inputs: Map<string, string>
+      InputLists: Map<string, string list>
       Output: string }
 
 /// A pointer optionally qualified by an input name: `service:/name`. No prefix (`/name` or
@@ -100,11 +137,19 @@ module Mapping =
 
     /// A mapping over `inputs` with `rules` and no `Ensure` hooks.
     let create (inputs: string list) (rules: Rule list) : Mapping =
-        { Inputs = inputs; Rules = rules; Ensure = [] }
+        { Inputs = inputs; InputLists = []; Rules = rules; Ensure = []; Functions = Functions.builtins }
+
+    /// Declare inputs that stand for a list of files.
+    let withInputLists (names: string list) (m: Mapping) : Mapping =
+        { m with InputLists = m.InputLists @ names }
 
     /// Add a named `Ensure` hook (run on the final result).
     let ensure (name: string) (check: Node -> Result<unit, Error list>) (m: Mapping) : Mapping =
         { m with Ensure = m.Ensure @ [ name, check ] }
+
+    /// Register (or replace) a function that `Rule.Compute` can call by name.
+    let withFunction (name: string) (fn: Function) (m: Mapping) : Mapping =
+        { m with Functions = Map.add name fn m.Functions }
 
     /// Rule helper: copy from a source-qualified string, e.g. `copy "service:/name" "/metadata/name"`.
     let copy (from: string) (dest: string) (inputs: string list) : Result<Rule, Error> =

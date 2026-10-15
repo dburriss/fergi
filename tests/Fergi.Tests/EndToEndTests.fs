@@ -83,7 +83,7 @@ let billingMapping =
     |> Mapping.ensure "metadata.name present" namePresent
 
 let private filesWith team service =
-    { Inputs = Map.ofList [ "org", "defaults/org.yaml"; "team", team; "service", service ]
+    { InputLists = Map.empty; Inputs = Map.ofList [ "org", "defaults/org.yaml"; "team", team; "service", service ]
       Output = "deploy/billing.yaml" }
 
 let billingFiles = filesWith "teams/energy.yaml" "services/billing/service.yaml"
@@ -278,7 +278,7 @@ let private strictMapping rules =
     Mapping.create [ "org"; "service" ] (Rule.Layer [ "org"; "service" ] :: rules)
 
 let private strictFiles =
-    { Inputs = Map.ofList [ "org", "defaults/org.yaml"; "service", "services/billing/strict-conflict.yaml" ]
+    { InputLists = Map.empty; Inputs = Map.ofList [ "org", "defaults/org.yaml"; "service", "services/billing/strict-conflict.yaml" ]
       Output = "deploy/strict.yaml" }
 
 [<Fact>]

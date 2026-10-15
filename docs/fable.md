@@ -47,7 +47,7 @@ When you add a test file to a .NET test project, add the same `<Compile Include=
 | Fnode.Json.Tests | 11 | 11 | 11 |
 | Fnode.Yaml.Tests | 57 | 57 | 57 |
 | Fnode.Conformance | 47 | 30 | 30 |
-| Fergi.Tests | 159 | 159 | 159 |
+| Fergi.Tests | 213 | 213 | 213 |
 
 Conformance differs only in counting: a `[<Theory; ClassData(FormatData)>]` is one xUnit case per
 format (17 x 2) but one runner entry that loops over both formats. Every case runs.
@@ -72,6 +72,14 @@ and shims:
   and the prefix pruning of provenance entries (`/a` must not drop `/ab`). All identical on .NET, JS, Python.
 - Nothing is excluded: all Fergi tests run on both targets. (The `Fnode.Conformance` count differs only as
   described above.)
+
+### Computation expressions under Fable
+
+`src/Fergi/Builders.fs` (`ops`, `docs`, `files`, `entry`, `mapping`) compiles unchanged for JS and Python.
+Confirmed by `BuilderTests.fs` and `AggregationTests.fs` on both targets: `[<CustomOperation>]` members
+(including one taking a lambda, `each`), `yield`/`yield!`/`for`/`if` in `ops`, and `and!` through
+`MergeSources` + `BindReturn` (errors from every source accumulate). The compiler desugars a CE into plain
+method calls before Fable sees it, so no Fable-specific code was needed.
 
 ### What is not the same as on .NET
 

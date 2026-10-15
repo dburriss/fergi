@@ -54,28 +54,57 @@ module Fergi =
 
     let private validate (m: Mapping) (f: Files) : Error list =
         let declared = m.Inputs
+        let lists = m.InputLists
         let missing =
-            m.Inputs
-            |> List.filter (fun n -> not (Map.containsKey n f.Inputs))
+            (m.Inputs |> List.filter (fun n -> not (Map.containsKey n f.Inputs)))
+            @ (lists |> List.filter (fun n -> not (Map.containsKey n f.InputLists)))
             |> List.map (fun n -> err ErrorCodes.mappingInputMissing ("Input '" + n + "' has no entry in Files"))
         let unknownFiles =
-            f.Inputs
-            |> Map.toList
-            |> List.map fst
-            |> List.filter (fun n -> not (List.contains n declared))
+            (f.Inputs |> Map.toList |> List.map fst |> List.filter (fun n -> not (List.contains n declared)))
+            @ (f.InputLists |> Map.toList |> List.map fst |> List.filter (fun n -> not (List.contains n lists)))
             |> List.map (fun n -> err ErrorCodes.mappingInputUnknown ("Files entry '" + n + "' is not a declared input"))
-        let used =
+        let clash =
+            declared
+            |> List.filter (fun n -> List.contains n lists)
+            |> List.map (fun n -> err ErrorCodes.mappingInvalid ("'" + n + "' is declared as both an input and an inputList"))
+        // a name used by a Layer or a top-level Copy must be a single-file input
+        let usedSingle (names: string list) =
+            names
+            |> List.distinct
+            |> List.collect (fun n ->
+                if List.contains n declared then []
+                elif List.contains n lists then
+                    [ err ErrorCodes.mappingInvalid ("'" + n + "' is an inputList; it can only be used inside Collect") ]
+                else [ err ErrorCodes.mappingInputUnknown ("Rule refers to undeclared input '" + n + "'") ])
+        let argInputs (args: Arg list) =
+            args |> List.choose (fun a -> match a with Arg.Input(n, _) -> Some n | _ -> None)
+        let usedByRule (r: Rule) =
+            match r with
+            | Rule.Layer ns -> ns
+            | Rule.Copy((n, _), _) -> [ n ]
+            | Rule.Compute c -> argInputs c.Args
+            | _ -> []
+        let unknownRules = m.Rules |> List.collect usedByRule |> usedSingle
+        let collects =
             m.Rules
             |> List.collect (fun r ->
                 match r with
-                | Rule.Layer ns -> ns
-                | Rule.Copy((n, _), _) -> [ n ]
+                | Rule.Collect c ->
+                    let own =
+                        if List.contains c.Input lists then []
+                        else [ err ErrorCodes.mappingInputUnknown ("Collect refers to undeclared inputList '" + c.Input + "'") ]
+                    let entry =
+                        c.Entry
+                        |> List.collect (fun er ->
+                            match er with
+                            | Rule.Copy((n, _), _) when n <> c.Input ->
+                                [ err ErrorCodes.mappingInvalid ("Collect '" + c.Input + "': an entry can only Copy from '" + c.Input + "', not '" + n + "'") ]
+                            | Rule.Compute cs when argInputs cs.Args |> List.exists (fun n -> n <> c.Input) ->
+                                [ err ErrorCodes.mappingInvalid ("Collect '" + c.Input + "': an entry can only read arguments from '" + c.Input + "'") ]
+                            | Rule.Copy _ | Rule.Rename _ | Rule.DefaultTo _ | Rule.Set _ | Rule.Drop _ | Rule.Compute _ -> []
+                            | _ -> [ err ErrorCodes.mappingInvalid ("Collect '" + c.Input + "': " + "this rule is not allowed inside an entry") ])
+                    own @ entry
                 | _ -> [])
-        let unknownRules =
-            used
-            |> List.distinct
-            |> List.filter (fun n -> not (List.contains n declared))
-            |> List.map (fun n -> err ErrorCodes.mappingInputUnknown ("Rule refers to undeclared input '" + n + "'"))
         let atMostOne (name: string) (isIt: Rule -> bool) =
             if (m.Rules |> List.filter isIt |> List.length) > 1 then
                 [ err ErrorCodes.mappingInvalid ("At most one " + name + " rule is allowed") ]
@@ -84,20 +113,56 @@ module Fergi =
             atMostOne "Layer" (fun r -> match r with Rule.Layer _ -> true | _ -> false)
             @ atMostOne "Conflict" (fun r -> match r with Rule.Conflict _ -> true | _ -> false)
             @ atMostOne "NullDeletes" (fun r -> match r with Rule.NullDeletes _ -> true | _ -> false)
-        missing @ unknownFiles @ unknownRules @ multi
+        let rec computes (rules: Rule list) =
+            rules
+            |> List.collect (fun r ->
+                match r with
+                | Rule.Compute c -> [ c.Fn ]
+                | Rule.Collect c -> computes c.Entry
+                | _ -> [])
+        let unknownFns =
+            computes m.Rules
+            |> List.distinct
+            |> List.filter (fun n -> not (Map.containsKey n m.Functions))
+            |> List.map (fun n ->
+                err ErrorCodes.mappingFunctionUnknown ("Compute calls unknown function '" + n + "'")
+                |> Error.withContext "function" n)
+        missing @ unknownFiles @ clash @ unknownRules @ collects @ multi @ unknownFns
 
-    let private loadAll (m: Mapping) (f: Files) (load: Loader) : Result<Map<string, Parsed>, Error list> =
-        let results =
+    /// Every single-file input, and every file of every inputList (as `(file, document)` in file order).
+    type private Loaded =
+        { Single: Map<string, Parsed>
+          Lists: Map<string, (string * Parsed) list> }
+
+    let private loadAll (m: Mapping) (f: Files) (load: Loader) : Result<Loaded, Error list> =
+        let tag (file: string) (name: string) (es: Error list) =
+            es |> List.map (fun e -> e |> Error.withContext "file" file |> Error.withContext "input" name)
+        let singles =
             m.Inputs
             |> List.map (fun n ->
                 let file = Map.find n f.Inputs
                 match load file with
                 | Ok p -> Ok(n, p)
-                | Error es ->
-                    Error(es |> List.map (fun e -> e |> Error.withContext "file" file |> Error.withContext "input" n)))
-        let errors = results |> List.collect (fun r -> match r with Error es -> es | Ok _ -> [])
+                | Error es -> Error(tag file n es))
+        let lists =
+            m.InputLists
+            |> List.map (fun n ->
+                let results =
+                    Map.find n f.InputLists
+                    |> List.mapi (fun i file ->
+                        match load file with
+                        | Ok p -> Ok(file, p)
+                        | Error es -> Error(tag file n es |> List.map (Error.withContext "index" (string i))))
+                let errs = results |> List.collect (fun r -> match r with Error es -> es | Ok _ -> [])
+                if List.isEmpty errs then Ok(n, results |> List.choose (fun r -> match r with Ok x -> Some x | Error _ -> None))
+                else Error errs)
+        let errors =
+            (singles |> List.collect (fun r -> match r with Error es -> es | Ok _ -> []))
+            @ (lists |> List.collect (fun r -> match r with Error es -> es | Ok _ -> []))
         if List.isEmpty errors then
-            Ok(results |> List.choose (fun r -> match r with Ok x -> Some x | Error _ -> None) |> Map.ofList)
+            Ok
+                { Single = singles |> List.choose (fun r -> match r with Ok x -> Some x | Error _ -> None) |> Map.ofList
+                  Lists = lists |> List.choose (fun r -> match r with Ok x -> Some x | Error _ -> None) |> Map.ofList }
         else Error errors
 
     /// Tie a conflict to a source span: right source first, then left; only when that input recorded a span
@@ -139,9 +204,40 @@ module Fergi =
         | None -> [ Op.Set(path, v) ]
         | Some first -> [ for n in first .. len - 1 -> Op.Set(List.truncate n path, Obj []) ] @ [ Op.Set(path, v) ]
 
-    let private compile (inputs: Map<string, Node>) (rule: Rule) (doc: Node) : Result<Op list, Error> =
+    /// Evaluate one `Compute` argument; a missing source is `path.notFound` naming where it was read from.
+    let private evalArg (inputs: Map<string, Node>) (doc: Node) (arg: Arg) : Result<Node, Error> =
+        match arg with
+        | Arg.Literal v -> Ok v
+        | Arg.Doc p ->
+            Doc.get p doc |> Result.mapError (Error.withContext "compute argument" (Selector.print p))
+        | Arg.Input(name, p) ->
+            Doc.get p (Map.find name inputs)
+            |> Result.mapError (Error.withContext "compute argument" (name + ":" + Selector.print p))
+
+    let private compute (fns: Map<string, Function>) (inputs: Map<string, Node>) (c: ComputeSpec) (doc: Node) : Result<Op list, Error> =
+        let args =
+            c.Args
+            |> List.fold
+                (fun acc a ->
+                    match acc with
+                    | Error _ -> acc
+                    | Ok vs -> evalArg inputs doc a |> Result.map (fun v -> vs @ [ v ]))
+                (Ok [])
+        args
+        |> Result.bind (fun vs ->
+            match (Map.find c.Fn fns) vs with
+            | Ok v -> Ok v
+            | Error msg ->
+                Error(
+                    err ErrorCodes.computeFailed (c.Fn + ": " + msg)
+                    |> Error.withContext "function" c.Fn
+                    |> Error.withContext "dest" (Selector.print c.Dest)
+                ))
+        |> Result.bind (fun v -> Selector.resolve c.Dest doc |> Result.map (fun d -> setCreating d v doc))
+
+    let private compile (fns: Map<string, Function>) (inputs: Map<string, Node>) (rule: Rule) (doc: Node) : Result<Op list, Error> =
         match rule with
-        | Rule.Layer _ | Rule.ListsBy _ | Rule.Conflict _ | Rule.NullDeletes _ -> Ok []
+        | Rule.Layer _ | Rule.ListsBy _ | Rule.Conflict _ | Rule.NullDeletes _ | Rule.Collect _ -> Ok []
         | Rule.Copy((name, src), dest) ->
             match Doc.get src (Map.find name inputs) with
             | Error e -> Error(Error.withContext "copy source" (name + ":" + Selector.print src) e)
@@ -161,6 +257,7 @@ module Fergi =
                 | Ok None -> Ok(setCreating rp v doc)
                 | Error e -> Error e)
         | Rule.Set(p, v) -> Selector.resolve p doc |> Result.map (fun rp -> setCreating rp v doc)
+        | Rule.Compute c -> compute fns inputs c doc
         | Rule.Drop p ->
             match Selector.resolve p doc with
             | Error e when e.Code = ErrorCodes.selectorNoMatch || e.Code = ErrorCode.pathNotFound -> Ok []
@@ -182,17 +279,113 @@ module Fergi =
         | Rule.DefaultTo _ -> "DefaultTo"
         | Rule.Set _ -> "Set"
         | Rule.Drop _ -> "Drop"
+        | Rule.Collect _ -> "Collect"
+        | Rule.Compute _ -> "Compute"
 
-    let private runRules (inputs: Map<string, Node>) (rules: Rule list) (start: Node) : Result<Node, Error list> =
+    /// The sort key of one entry: all strings, all ints or all floats.
+    type private SortKey =
+        | KStr of string
+        | KInt of int64
+        | KFloat of float
+
+    let private sortKeyOf (n: Node) : SortKey option =
+        match n with
+        | Str x -> Some(KStr x)
+        | Int x -> Some(KInt x)
+        | Float x -> Some(KFloat x)
+        | _ -> None
+
+    /// Order `(file, index, entry)` by the value at `by`. Every entry needs the field, and the values must
+    /// be all strings, all ints or all floats; otherwise every problem is a `collect.sortKey` error.
+    let private sortEntries (input: string) (by: SelectorPath) (entries: (string * int * Node) list) : Result<Node list, Error list> =
+        let keyed =
+            entries
+            |> List.map (fun (file, i, entry) ->
+                let fail why =
+                    Error(
+                        Error.create ErrorCodes.collectSortKey ("Cannot sort by " + Selector.print by + ": " + why) []
+                        |> Error.withContext "file" file
+                        |> Error.withContext "index" (string i)
+                        |> Error.withContext "input" input
+                    )
+                match Doc.get by entry with
+                | Error _ -> fail "the field is missing"
+                | Ok v ->
+                    match sortKeyOf v with
+                    | Some k -> Ok(k, entry)
+                    | None -> fail "the value is not a string or a number")
+        let errs = keyed |> List.collect (fun r -> match r with Error e -> [ e ] | Ok _ -> [])
+        if not (List.isEmpty errs) then Error errs
+        else
+            let ok = keyed |> List.choose (fun r -> match r with Ok x -> Some x | Error _ -> None)
+            let allStr = ok |> List.forall (fun (k, _) -> match k with KStr _ -> true | _ -> false)
+            let allInt = ok |> List.forall (fun (k, _) -> match k with KInt _ -> true | _ -> false)
+            let allFloat = ok |> List.forall (fun (k, _) -> match k with KFloat _ -> true | _ -> false)
+            if allStr then
+                Ok(ok |> List.sortBy (fun (k, _) -> match k with KStr x -> x | _ -> "") |> List.map snd)
+            elif allInt then
+                Ok(ok |> List.sortBy (fun (k, _) -> match k with KInt x -> x | _ -> 0L) |> List.map snd)
+            elif allFloat then
+                Ok(ok |> List.sortBy (fun (k, _) -> match k with KFloat x -> x | _ -> 0.0) |> List.map snd)
+            else
+                Error [ Error.create ErrorCodes.collectSortKey ("Cannot sort by " + Selector.print by + ": the values mix strings and numbers") []
+                        |> Error.withContext "input" input ]
+
+    let rec private runRules
+        (fns: Map<string, Function>)
+        (inputs: Map<string, Node>)
+        (lists: Map<string, (string * Node) list>)
+        (rules: Rule list)
+        (start: Node)
+        : Result<Node, Error list> =
         let step (acc: Result<Node, Error list>) (i: int, rule: Rule) =
             match acc with
             | Error _ -> acc
             | Ok doc ->
                 let tag = Error.withContext "kind" (ruleName rule) >> Error.withContext "rule" (string i)
-                match compile inputs rule doc with
-                | Error e -> Error [ tag e ]
+                let compiled =
+                    match rule with
+                    | Rule.Collect c -> compileCollect fns lists c doc
+                    | _ -> compile fns inputs rule doc |> Result.mapError (fun e -> [ e ])
+                match compiled with
+                | Error es -> Error(List.map tag es)
                 | Ok ops -> Patch.apply ops doc |> Result.mapError (List.map tag)
         rules |> List.indexed |> List.fold step (Ok start)
+
+    /// One entry per file of the inputList (each built by running `Entry` over an empty object with the file
+    /// bound to the input name), sorted if asked, then written at `Into`. Every file's errors are reported.
+    and private compileCollect
+        (fns: Map<string, Function>)
+        (lists: Map<string, (string * Node) list>)
+        (c: CollectSpec)
+        (doc: Node)
+        : Result<Op list, Error list> =
+        let files = Map.tryFind c.Input lists |> Option.defaultValue []
+        let built =
+            files
+            |> List.mapi (fun i (file, node) ->
+                runRules fns (Map.ofList [ c.Input, node ]) Map.empty c.Entry (Obj [])
+                |> Result.map (fun entry -> file, i, entry)
+                |> Result.mapError (
+                    List.map (fun e ->
+                        e
+                        |> Error.withContext "file" file
+                        |> Error.withContext "index" (string i)
+                        |> Error.withContext "input" c.Input)
+                ))
+        let errs = built |> List.collect (fun r -> match r with Error es -> es | Ok _ -> [])
+        if not (List.isEmpty errs) then Error errs
+        else
+            let entries = built |> List.choose (fun r -> match r with Ok x -> Some x | Error _ -> None)
+            let ordered =
+                match c.SortBy with
+                | None -> Ok(entries |> List.map (fun (_, _, e) -> e))
+                | Some by -> sortEntries c.Input by entries
+            ordered
+            |> Result.bind (fun nodes ->
+                Selector.resolve c.Into doc
+                |> Result.map (fun into -> setCreating into (Arr nodes) doc)
+                |> Result.mapError (fun e -> [ e ]))
 
     let private runEnsure (m: Mapping) (result: Node) : Error list =
         m.Ensure
@@ -222,15 +415,17 @@ module Fergi =
         | [] ->
             match loadAll m f load with
             | Error errs -> Error errs
-            | Ok parsed ->
+            | Ok loaded ->
+                let parsed = loaded.Single
                 let inputs = parsed |> Map.map (fun _ p -> p.Node)
+                let lists = loaded.Lists |> Map.map (fun _ fs -> fs |> List.map (fun (file, p) -> file, p.Node))
                 let layerNames =
                     m.Rules |> List.tryPick (fun r -> match r with Rule.Layer ns -> Some ns | _ -> None) |> Option.defaultValue []
                 let layered = layerNames |> List.map (fun n -> n, Map.find n inputs)
                 match Doc.layers (policyOf m.Rules) layered with
                 | Error cs -> Error(List.map (conflictError f parsed) cs)
                 | Ok(start, prov) ->
-                    match runRules inputs m.Rules start with
+                    match runRules m.Functions inputs lists m.Rules start with
                     | Error errs -> Error errs
                     | Ok result ->
                         match runEnsure m result with
@@ -263,4 +458,4 @@ module Fergi =
         (rules: Rule list)
         (load: Loader)
         : Result<Map<string, Node>, Error list> =
-        run (Mapping.create (List.map fst inputs) rules) { Inputs = Map.ofList inputs; Output = output } load
+        run (Mapping.create (List.map fst inputs) rules) { Inputs = Map.ofList inputs; InputLists = Map.empty; Output = output } load
