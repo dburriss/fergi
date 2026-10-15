@@ -25,7 +25,9 @@ Last verified: 2026-10-14. `dotnet build Fergi.slnx -c Release` has 0 warnings. 
 | `src/JsonValue` | Standalone JSON library (placeholder namespace `Fergi.Json`), positions built in, no dependencies |
 | `src/Fnode.Json` | JSON adapter over `JsonValue` |
 | `src/Fergi` | Selectors with `Where`, `Doc`, `Patch` (atomic apply, diff), `Policy`, `Doc.merge`/`layers` with provenance, `Mapping`/`Files` data form, `run`/`plan`/`runFiles`, aggregation (`inputList`, `Rule.Collect`), computed values (`Rule.Compute`, named functions from `Mapping.Functions`, built-ins in `Functions.builtins`), and the CEs `ops`, `docs`, `files`, `entry`, `mapping` |
+| `src/Fergi.Jsonata` | **Spike, .NET only.** Registers a `jsonata` function (`Jsonata.Net.Native`) for `Rule.Compute`. See `docs/jsonata.md` |
 | `tests/*` | Unit and property tests per project, `Fnode.Conformance` (shared YAML+JSON cases), `Fnode.Fable` (Fable harness), `Fergi.Tests` (includes the end-to-end billing case under `tests/Fergi.Tests/data/`) |
+| `tests/jsonata-conformance` | 90 JSONata expressions run through the .NET, JS and Python libraries with recorded expectations (73 portable, 17 divergent). `scripts/jsonata-conformance.sh` runs it |
 | `scripts/fable-test.sh` | Runs the shared test sources under Fable JS and Python (`js`, `python` or `all`) |
 
 Test counts on .NET: Fnode 30, JsonValue 323, Fnode.Json 11, Fnode.Yaml 57, Conformance 47, Fergi 225. Fable runs 676 entries per target (Conformance counts differently there, every case still runs).
@@ -47,6 +49,8 @@ Test counts on .NET: Fnode 30, JsonValue 323, Fnode.Json 11, Fnode.Yaml 57, Conf
 Unreleased commits, not yet versioned or published: surrogate-pair escapes, quoting of `<<` and `...`, `!!float` tagging so every finite float round-trips, `ParseWithPositions`, `ParseWithMetadata` (original timestamp text), Fable JS and Python support with its own harness, plus docs. Fnode depends on all of it through the project reference.
 
 ## Known limits and findings
+
+- **JSONata is not identical across runtimes.** 17 of 90 conformance cases differ between the .NET, JS and Python libraries (large ints, `$string` of non-integers, non-BMP strings, `$sort` ties, `$number("NaN")`, date pictures, runaway-recursion handling). The portable subset and the divergence table are in `docs/jsonata.md`; the Python and JS bindings for Fable are not written.
 
 Full detail and proposed fixes are in `docs/fergi-spike.md`.
 

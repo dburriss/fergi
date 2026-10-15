@@ -65,3 +65,4 @@ __pycache__/
 node_modules/
 *.pyc
 *.generated.fs
+tests/jsonata-conformance/observed/

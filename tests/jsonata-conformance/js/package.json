@@ -1,0 +1,8 @@
+{
+  "name": "jsonata-conformance-js",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "jsonata": "2.2.2"
+  }
+}

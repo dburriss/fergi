@@ -1,0 +1,1359 @@
+{
+ "guardrails": {
+  "timeoutMs": 2000,
+  "maxDepth": 500
+ },
+ "cases": [
+  {
+   "id": "concat",
+   "expr": "first & ' ' & last",
+   "ctx": {
+    "first": "Ada",
+    "last": "L"
+   },
+   "expect": {
+    "kind": "value",
+    "value": "Ada L"
+   }
+  },
+  {
+   "id": "int-add",
+   "expr": "1 + 2",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": 3
+   }
+  },
+  {
+   "id": "int-div",
+   "expr": "7 / 2",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": 3.5
+   }
+  },
+  {
+   "id": "int-div-exact",
+   "expr": "6 / 2",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": 3
+   }
+  },
+  {
+   "id": "float-add",
+   "expr": "0.1 + 0.2",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": 0.30000000000000004
+   }
+  },
+  {
+   "id": "bigint-passthru",
+   "expr": "a",
+   "ctx": {
+    "a": 9007199254740993
+   },
+   "divergent": true,
+   "expect": {
+    "js": {
+     "kind": "value",
+     "value": 9007199254740992
+    },
+    "python": {
+     "kind": "value",
+     "value": 9007199254740993
+    },
+    "dotnet": {
+     "kind": "value",
+     "value": 9007199254740993
+    }
+   },
+   "note": "JS numbers are doubles, so an int above 2^53 is rounded on the way in. Python and .NET keep it exact."
+  },
+  {
+   "id": "bigint-add0",
+   "expr": "a + 0",
+   "ctx": {
+    "a": 9007199254740993
+   },
+   "divergent": true,
+   "expect": {
+    "js": {
+     "kind": "value",
+     "value": 9007199254740992
+    },
+    "python": {
+     "kind": "value",
+     "value": 9007199254740992
+    },
+    "dotnet": {
+     "kind": "value",
+     "value": 9007199254740993
+    }
+   },
+   "note": "Arithmetic on ints above 2^53: JS and Python compute with doubles, .NET with exact 64-bit ints."
+  },
+  {
+   "id": "bigint-add1",
+   "expr": "a + 1",
+   "ctx": {
+    "a": 9007199254740993
+   },
+   "divergent": true,
+   "expect": {
+    "js": {
+     "kind": "value",
+     "value": 9007199254740992
+    },
+    "python": {
+     "kind": "value",
+     "value": 9007199254740992
+    },
+    "dotnet": {
+     "kind": "value",
+     "value": 9007199254740994
+    }
+   },
+   "note": "Arithmetic on ints above 2^53: JS and Python compute with doubles, .NET with exact 64-bit ints."
+  },
+  {
+   "id": "int64max",
+   "expr": "a",
+   "ctx": {
+    "a": 9223372036854775807
+   },
+   "divergent": true,
+   "expect": {
+    "js": {
+     "kind": "value",
+     "value": 9223372036854776000
+    },
+    "python": {
+     "kind": "value",
+     "value": 9223372036854775807
+    },
+    "dotnet": {
+     "kind": "value",
+     "value": 9223372036854775807
+    }
+   },
+   "note": "JS rounds int64 max to a double; Python and .NET keep it exact."
+  },
+  {
+   "id": "mul-large",
+   "expr": "3037000500 * 3037000500",
+   "ctx": null,
+   "divergent": true,
+   "expect": {
+    "js": {
+     "kind": "value",
+     "value": 9223372037000250000
+    },
+    "python": {
+     "kind": "value",
+     "value": 9223372037000249344
+    },
+    "dotnet": {
+     "kind": "value",
+     "value": 9223372037000250000
+    }
+   },
+   "note": "The same double. Python prints its exact digits, JS and .NET the shortest decimal that round-trips."
+  },
+  {
+   "id": "string-int",
+   "expr": "$string(42)",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": "42"
+   }
+  },
+  {
+   "id": "string-float",
+   "expr": "$string(1/3)",
+   "ctx": null,
+   "divergent": true,
+   "expect": {
+    "js": {
+     "kind": "value",
+     "value": "0.333333333333333"
+    },
+    "python": {
+     "kind": "value",
+     "value": "0.333333333333333"
+    },
+    "dotnet": {
+     "kind": "value",
+     "value": "0.3333333333333333"
+    }
+   },
+   "note": "$string uses 15 significant digits in JS and Python, 16 in .NET."
+  },
+  {
+   "id": "string-1e21",
+   "expr": "$string(1e21)",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": "1e+21"
+   }
+  },
+  {
+   "id": "string-1e-7",
+   "expr": "$string(0.0000001)",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": "1e-7"
+   }
+  },
+  {
+   "id": "string-whole-float",
+   "expr": "$string(2.0)",
+   "ctx": {},
+   "expect": {
+    "kind": "value",
+    "value": "2"
+   }
+  },
+  {
+   "id": "ctx-float-whole",
+   "expr": "$string(a)",
+   "ctx": {
+    "a": 2.0
+   },
+   "divergent": true,
+   "expect": {
+    "js": {
+     "kind": "value",
+     "value": "2"
+    },
+    "python": {
+     "kind": "value",
+     "value": "2"
+    },
+    "dotnet": {
+     "kind": "value",
+     "value": "2.0"
+    }
+   },
+   "note": "A whole float from the input prints as \"2\" in JS and Python, \"2.0\" in .NET."
+  },
+  {
+   "id": "round-half",
+   "expr": "[$round(2.5), $round(3.5), $round(-2.5), $round(1.005, 2)]",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": [
+     2,
+     4,
+     -2,
+     1
+    ]
+   }
+  },
+  {
+   "id": "number-str",
+   "expr": "[$number('12'), $number('1e3'), $number('0x1F')]",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": [
+     12,
+     1000,
+     31
+    ]
+   }
+  },
+  {
+   "id": "number-bad",
+   "expr": "$number('x')",
+   "ctx": null,
+   "divergent": true,
+   "expect": {
+    "js": {
+     "kind": "error",
+     "code": "D3030"
+    },
+    "python": {
+     "kind": "error",
+     "code": "ValueError"
+    },
+    "dotnet": {
+     "kind": "error",
+     "code": "D3030"
+    }
+   },
+   "note": "Python raises a plain ValueError instead of a JSONata D3030 error."
+  },
+  {
+   "id": "power-sqrt",
+   "expr": "[$power(2,10), $sqrt(16)]",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": [
+     1024,
+     4
+    ]
+   }
+  },
+  {
+   "id": "length-emoji",
+   "expr": "$length(s)",
+   "ctx": {
+    "s": "a😀b"
+   },
+   "divergent": true,
+   "expect": {
+    "js": {
+     "kind": "value",
+     "value": 3
+    },
+    "python": {
+     "kind": "value",
+     "value": 3
+    },
+    "dotnet": {
+     "kind": "value",
+     "value": 4
+    }
+   },
+   "note": "$length counts characters in JS and Python, UTF-16 code units in .NET (a known difference of the port)."
+  },
+  {
+   "id": "substring-emoji",
+   "expr": "$substring(s,1,1)",
+   "ctx": {
+    "s": "a😀b"
+   },
+   "divergent": true,
+   "expect": {
+    "js": {
+     "kind": "value",
+     "value": "😀"
+    },
+    "python": {
+     "kind": "value",
+     "value": "😀"
+    },
+    "dotnet": {
+     "kind": "error",
+     "code": "ArgumentException"
+    }
+   },
+   "note": "On a non-BMP character .NET splits the surrogate pair (here it throws ArgumentException); JS and Python return the character."
+  },
+  {
+   "id": "upper-unicode",
+   "expr": "$uppercase(s)",
+   "ctx": {
+    "s": "straße"
+   },
+   "divergent": true,
+   "expect": {
+    "js": {
+     "kind": "value",
+     "value": "STRASSE"
+    },
+    "python": {
+     "kind": "value",
+     "value": "STRASSE"
+    },
+    "dotnet": {
+     "kind": "value",
+     "value": "STRAßE"
+    }
+   },
+   "note": "Special case mapping: .NET keeps the sharp s (ToUpperInvariant), JS and Python give SS."
+  },
+  {
+   "id": "split-join",
+   "expr": "$join($split('a,b,c', ','), '-')",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": "a-b-c"
+   }
+  },
+  {
+   "id": "replace-regex",
+   "expr": "$replace('Ada Lovelace', /(\\w+) (\\w+)/, '$2, $1')",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": "Lovelace, Ada"
+   }
+  },
+  {
+   "id": "match",
+   "expr": "$match('a1b22', /\\d+/).match",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": [
+     "1",
+     "22"
+    ]
+   }
+  },
+  {
+   "id": "sort-names",
+   "expr": "$sort(xs)",
+   "ctx": {
+    "xs": [
+     "b",
+     "a",
+     "B",
+     "ä",
+     "Z"
+    ]
+   },
+   "expect": {
+    "kind": "value",
+    "value": [
+     "B",
+     "Z",
+     "a",
+     "b",
+     "ä"
+    ]
+   }
+  },
+  {
+   "id": "sort-stable",
+   "expr": "$sort(xs, function($a,$b){$a.k > $b.k}).v",
+   "ctx": {
+    "xs": [
+     {
+      "k": 1,
+      "v": "a"
+     },
+     {
+      "k": 1,
+      "v": "b"
+     },
+     {
+      "k": 0,
+      "v": "c"
+     }
+    ]
+   },
+   "divergent": true,
+   "expect": {
+    "js": {
+     "kind": "value",
+     "value": [
+      "c",
+      "a",
+      "b"
+     ]
+    },
+    "python": {
+     "kind": "value",
+     "value": [
+      "c",
+      "b",
+      "a"
+     ]
+    },
+    "dotnet": {
+     "kind": "value",
+     "value": [
+      "c",
+      "a",
+      "b"
+     ]
+    }
+   },
+   "note": "$sort with equal keys: JS and .NET keep the input order, Python does not."
+  },
+  {
+   "id": "key-order",
+   "expr": "$",
+   "ctx": {
+    "z": 1,
+    "a": 2,
+    "m": 3
+   },
+   "expect": {
+    "kind": "value",
+    "value": {
+     "z": 1,
+     "a": 2,
+     "m": 3
+    }
+   }
+  },
+  {
+   "id": "keys-fn",
+   "expr": "$keys($)",
+   "ctx": {
+    "z": 1,
+    "a": 2,
+    "m": 3
+   },
+   "expect": {
+    "kind": "value",
+    "value": [
+     "z",
+     "a",
+     "m"
+    ]
+   }
+  },
+  {
+   "id": "merge",
+   "expr": "$merge([{'a':1,'b':2},{'b':3}])",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": {
+     "a": 1,
+     "b": 3
+    }
+   }
+  },
+  {
+   "id": "singleton-path",
+   "expr": "xs.n",
+   "ctx": {
+    "xs": [
+     {
+      "n": 1
+     }
+    ]
+   },
+   "expect": {
+    "kind": "value",
+    "value": 1
+   }
+  },
+  {
+   "id": "singleton-array-field",
+   "expr": "xs",
+   "ctx": {
+    "xs": [
+     1
+    ]
+   },
+   "expect": {
+    "kind": "value",
+    "value": [
+     1
+    ]
+   }
+  },
+  {
+   "id": "force-array",
+   "expr": "xs.n[]",
+   "ctx": {
+    "xs": [
+     {
+      "n": 1
+     }
+    ]
+   },
+   "expect": {
+    "kind": "value",
+    "value": [
+     1
+    ]
+   }
+  },
+  {
+   "id": "empty-sum",
+   "expr": "$sum([])",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": 0
+   }
+  },
+  {
+   "id": "undefined",
+   "expr": "nope",
+   "ctx": {
+    "a": 1
+   },
+   "expect": {
+    "kind": "undefined"
+   }
+  },
+  {
+   "id": "null-field",
+   "expr": "a",
+   "ctx": {
+    "a": null
+   },
+   "expect": {
+    "kind": "value",
+    "value": null
+   }
+  },
+  {
+   "id": "null-arith",
+   "expr": "a + 1",
+   "ctx": {
+    "a": null
+   },
+   "expect": {
+    "kind": "error",
+    "code": "T2001"
+   }
+  },
+  {
+   "id": "bool-coerce",
+   "expr": "[$boolean('a'), $boolean(''), $boolean(0), $boolean([]), $boolean({})]",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": [
+     true,
+     false,
+     false,
+     false,
+     false
+    ]
+   }
+  },
+  {
+   "id": "cond",
+   "expr": "a ? 'y' : 'n'",
+   "ctx": {
+    "a": 0
+   },
+   "expect": {
+    "kind": "value",
+    "value": "n"
+   }
+  },
+  {
+   "id": "exists",
+   "expr": "$exists(a)",
+   "ctx": {
+    "a": null
+   },
+   "expect": {
+    "kind": "value",
+    "value": true
+   }
+  },
+  {
+   "id": "formatNumber",
+   "expr": "$formatNumber(1234.5, '#,##0.00')",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": "1,234.50"
+   }
+  },
+  {
+   "id": "formatBase",
+   "expr": "$formatBase(255, 16)",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": "ff"
+   }
+  },
+  {
+   "id": "fromMillis",
+   "expr": "$fromMillis(1700000000000)",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": "2023-11-14T22:13:20.000Z"
+   }
+  },
+  {
+   "id": "toMillis",
+   "expr": "$toMillis('2026-01-02T03:04:05Z')",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": 1767323045000
+   }
+  },
+  {
+   "id": "ts-passthru",
+   "expr": "$toMillis(t)",
+   "ctx": {
+    "t": "2026-01-02T03:04:05.123+01:00"
+   },
+   "expect": {
+    "kind": "value",
+    "value": 1767319445123
+   }
+  },
+  {
+   "id": "transform",
+   "expr": "$ ~> |a|{'b':1}|",
+   "ctx": {
+    "a": {
+     "c": 2
+    }
+   },
+   "expect": {
+    "kind": "value",
+    "value": {
+     "a": {
+      "c": 2,
+      "b": 1
+     }
+    }
+   }
+  },
+  {
+   "id": "obj-agg",
+   "expr": "xs{k: $sum(v)}",
+   "ctx": {
+    "xs": [
+     {
+      "k": "a",
+      "v": 1
+     },
+     {
+      "k": "b",
+      "v": 2
+     },
+     {
+      "k": "a",
+      "v": 3
+     }
+    ]
+   },
+   "expect": {
+    "kind": "value",
+    "value": {
+     "a": 4,
+     "b": 2
+    }
+   }
+  },
+  {
+   "id": "hof",
+   "expr": "$map([1,2,3], function($x){$x*$x})",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": [
+     1,
+     4,
+     9
+    ]
+   }
+  },
+  {
+   "id": "reduce",
+   "expr": "$reduce([1,2,3,4], function($a,$b){$a+$b})",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": 10
+   }
+  },
+  {
+   "id": "string-obj",
+   "expr": "$string({'a':[1,2.5,'x']})",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": "{\"a\":[1,2.5,\"x\"]}"
+   }
+  },
+  {
+   "id": "string-neg0",
+   "expr": "$string(-0)",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": "0"
+   }
+  },
+  {
+   "id": "nan",
+   "expr": "$number('NaN')",
+   "ctx": null,
+   "divergent": true,
+   "expect": {
+    "js": {
+     "kind": "error",
+     "code": "D3030"
+    },
+    "python": {
+     "kind": "value",
+     "value": {
+      "$nonFinite": "NaN"
+     }
+    },
+    "dotnet": {
+     "kind": "error",
+     "code": "D3030"
+    }
+   },
+   "note": "$number('NaN'): JS and .NET raise D3030, Python returns NaN."
+  },
+  {
+   "id": "syntax",
+   "expr": "a &",
+   "ctx": {},
+   "expect": {
+    "kind": "error",
+    "code": "S0207"
+   }
+  },
+  {
+   "id": "eval-count",
+   "expr": "$count(xs)",
+   "ctx": {
+    "xs": [
+     1,
+     2,
+     3
+    ]
+   },
+   "expect": {
+    "kind": "value",
+    "value": 3
+   }
+  },
+  {
+   "id": "positional",
+   "expr": "xs#$i[$i>0]",
+   "ctx": {
+    "xs": [
+     "a",
+     "b",
+     "c"
+    ]
+   },
+   "expect": {
+    "kind": "value",
+    "value": [
+     "b",
+     "c"
+    ]
+   }
+  },
+  {
+   "id": "uuid-free-random",
+   "expr": "$type($random())",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": "number"
+   }
+  },
+  {
+   "id": "now-type",
+   "expr": "$type($now())",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": "string"
+   }
+  },
+  {
+   "id": "base64",
+   "expr": "$base64encode('héllo')",
+   "ctx": null,
+   "divergent": true,
+   "expect": {
+    "js": {
+     "kind": "value",
+     "value": "aOlsbG8="
+    },
+    "python": {
+     "kind": "value",
+     "value": "aMOpbGxv"
+    },
+    "dotnet": {
+     "kind": "value",
+     "value": "aMOpbGxv"
+    }
+   },
+   "note": "JS encodes the string as Latin-1 bytes, Python and .NET as UTF-8."
+  },
+  {
+   "id": "pad",
+   "expr": "$pad('x', -3, '*')",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": "**x"
+   }
+  },
+  {
+   "id": "abs-floor",
+   "expr": "[$abs(-1.5), $floor(-1.5), $ceil(1.2)]",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": [
+     1.5,
+     -2,
+     2
+    ]
+   }
+  },
+  {
+   "id": "max-min",
+   "expr": "[$max([1,5.5,3]), $min([2,1])]",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": [
+     5.5,
+     1
+    ]
+   }
+  },
+  {
+   "id": "avg",
+   "expr": "$average([1,2])",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": 1.5
+   }
+  },
+  {
+   "id": "lookup-ci",
+   "expr": "$lookup($, 'K')",
+   "ctx": {
+    "k": 1
+   },
+   "expect": {
+    "kind": "undefined"
+   }
+  },
+  {
+   "id": "reshape-objects",
+   "expr": "services.{\"name\": name, \"team\": owner}",
+   "ctx": {
+    "services": [
+     {
+      "name": "b",
+      "owner": "x",
+      "tier": 2
+     },
+     {
+      "name": "a",
+      "owner": "y",
+      "tier": 1
+     }
+    ]
+   },
+   "expect": {
+    "kind": "value",
+    "value": [
+     {
+      "name": "b",
+      "team": "x"
+     },
+     {
+      "name": "a",
+      "team": "y"
+     }
+    ]
+   }
+  },
+  {
+   "id": "filter-two-conditions",
+   "expr": "services[tier = 1 and owner = 'y'].name",
+   "ctx": {
+    "services": [
+     {
+      "name": "b",
+      "owner": "x",
+      "tier": 2
+     },
+     {
+      "name": "a",
+      "owner": "y",
+      "tier": 1
+     }
+    ]
+   },
+   "expect": {
+    "kind": "value",
+    "value": "a"
+   }
+  },
+  {
+   "id": "cond-build",
+   "expr": "tier = 1 ? 'gold' : 'standard'",
+   "ctx": {
+    "tier": 1
+   },
+   "expect": {
+    "kind": "value",
+    "value": "gold"
+   }
+  },
+  {
+   "id": "join-fields",
+   "expr": "$join([first, last], ' ')",
+   "ctx": {
+    "first": "Ada",
+    "last": "Lovelace"
+   },
+   "expect": {
+    "kind": "value",
+    "value": "Ada Lovelace"
+   }
+  },
+  {
+   "id": "null-is-falsy",
+   "expr": "nick ? nick : first",
+   "ctx": {
+    "nick": null,
+    "first": "Ada"
+   },
+   "expect": {
+    "kind": "value",
+    "value": "Ada"
+   }
+  },
+  {
+   "id": "lookup-by-key",
+   "expr": "$lookup({'a':1,'b':2}, key)",
+   "ctx": {
+    "key": "b"
+   },
+   "expect": {
+    "kind": "value",
+    "value": 2
+   }
+  },
+  {
+   "id": "nested-flatten",
+   "expr": "a.b.c",
+   "ctx": {
+    "a": [
+     {
+      "b": [
+       {
+        "c": 1
+       },
+       {
+        "c": 2
+       }
+      ]
+     },
+     {
+      "b": [
+       {
+        "c": 3
+       }
+      ]
+     }
+    ]
+   },
+   "expect": {
+    "kind": "value",
+    "value": [
+     1,
+     2,
+     3
+    ]
+   }
+  },
+  {
+   "id": "count-filter",
+   "expr": "$count(xs[v > 1])",
+   "ctx": {
+    "xs": [
+     {
+      "v": 1
+     },
+     {
+      "v": 2
+     },
+     {
+      "v": 3
+     }
+    ]
+   },
+   "expect": {
+    "kind": "value",
+    "value": 2
+   }
+  },
+  {
+   "id": "distinct",
+   "expr": "$distinct(xs)",
+   "ctx": {
+    "xs": [
+     1,
+     2,
+     1,
+     3,
+     2
+    ]
+   },
+   "expect": {
+    "kind": "value",
+    "value": [
+     1,
+     2,
+     3
+    ]
+   }
+  },
+  {
+   "id": "spread",
+   "expr": "$spread({'a':1,'b':2})",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": [
+     {
+      "a": 1
+     },
+     {
+      "b": 2
+     }
+    ]
+   }
+  },
+  {
+   "id": "each",
+   "expr": "$each({'a':1,'b':2}, function($v,$k){$k & '=' & $string($v)})",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": [
+     "a=1",
+     "b=2"
+    ]
+   }
+  },
+  {
+   "id": "sift",
+   "expr": "$sift({'a':1,'b':2}, function($v){$v > 1})",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": {
+     "b": 2
+    }
+   }
+  },
+  {
+   "id": "zip",
+   "expr": "$zip([1,2],[3,4])",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": [
+     [
+      1,
+      3
+     ],
+     [
+      2,
+      4
+     ]
+    ]
+   }
+  },
+  {
+   "id": "substring-before-after",
+   "expr": "[$substringBefore('a=b','='), $substringAfter('a=b','=')]",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": [
+     "a",
+     "b"
+    ]
+   }
+  },
+  {
+   "id": "contains",
+   "expr": "$contains('hello','ell')",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": true
+   }
+  },
+  {
+   "id": "fromMillis-picture",
+   "expr": "$fromMillis(0, '[Y0001]-[M01]-[D01]')",
+   "ctx": null,
+   "divergent": true,
+   "expect": {
+    "js": {
+     "kind": "value",
+     "value": "1970-01-01"
+    },
+    "python": {
+     "kind": "value",
+     "value": "1970-01-01"
+    },
+    "dotnet": {
+     "kind": "value",
+     "value": "[Y0001]-[101]-[D01]"
+    }
+   },
+   "note": "Date pictures: .NET applies C# format strings, not the XPath picture syntax (a known difference of the port)."
+  },
+  {
+   "id": "bool-ops",
+   "expr": "a and b or c",
+   "ctx": {
+    "a": true,
+    "b": false,
+    "c": true
+   },
+   "expect": {
+    "kind": "value",
+    "value": true
+   }
+  },
+  {
+   "id": "range",
+   "expr": "[1..5]",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": [
+     1,
+     2,
+     3,
+     4,
+     5
+    ]
+   }
+  },
+  {
+   "id": "chain",
+   "expr": "xs ~> $map(function($x){$x*2}) ~> $sum()",
+   "ctx": {
+    "xs": [
+     1,
+     2,
+     3
+    ]
+   },
+   "expect": {
+    "kind": "value",
+    "value": 12
+   }
+  },
+  {
+   "id": "null-in-array",
+   "expr": "[1,null,2]",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": [
+     1,
+     null,
+     2
+    ]
+   }
+  },
+  {
+   "id": "sum-mixed",
+   "expr": "$sum([1,2.5])",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": 3.5
+   }
+  },
+  {
+   "id": "bmp-unicode",
+   "expr": "[$uppercase('é'), $length('héllo')]",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": [
+     "É",
+     5
+    ]
+   }
+  },
+  {
+   "id": "string-bool-null",
+   "expr": "[$string(true), $string(null)]",
+   "ctx": null,
+   "expect": {
+    "kind": "value",
+    "value": [
+     "true",
+     "null"
+    ]
+   }
+  },
+  {
+   "id": "exists-missing",
+   "expr": "$exists(nope)",
+   "ctx": {
+    "a": 1
+   },
+   "expect": {
+    "kind": "value",
+    "value": false
+   }
+  },
+  {
+   "id": "recursion-nontail",
+   "expr": "( $f := function($n){ 1 + $f($n + 1) }; $f(0) )",
+   "ctx": null,
+   "divergent": true,
+   "expect": {
+    "js": {
+     "kind": "error",
+     "code": "D1011"
+    },
+    "python": {
+     "kind": "error",
+     "code": "D1011"
+    },
+    "dotnet": {
+     "kind": "error",
+     "code": "U1001"
+    }
+   },
+   "note": "Every implementation stops it, with different codes: D1011 (depth) in JS and Python, U1001 (evaluation limit) in .NET."
+  },
+  {
+   "id": "recursion-tail",
+   "expr": "( $f := function($n){ $f($n + 1) }; $f(0) )",
+   "ctx": null,
+   "divergent": true,
+   "expect": {
+    "js": {
+     "kind": "error",
+     "code": "D1012"
+    },
+    "python": {
+     "kind": "error",
+     "code": "D1012"
+    },
+    "dotnet": {
+     "kind": "error",
+     "code": "U1001"
+    }
+   },
+   "note": "JS and Python only stop it through the timeout we set (D1012); .NET stops it with its built-in limit (U1001). Without guardrails JS and Python never return."
+  }
+ ],
+ "libraries": {
+  "js": "jsonata 2.2.2",
+  "python": "jsonata-python 0.7.1",
+  "dotnet": "Jsonata.Net.Native 3.0.0"
+ }
+}
