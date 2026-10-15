@@ -40,3 +40,11 @@ module ErrorCodes =
     /// A function called by a `Compute` rule rejected its arguments.
     [<Literal>]
     let computeFailed = "compute.failed"
+
+    /// A mapping file names an unsupported `version`.
+    [<Literal>]
+    let mappingVersion = "mapping.version"
+    /// A `Mapping` holds something a file cannot express (an `Ensure` hook, a host function, a path that
+    /// does not read back the same).
+    [<Literal>]
+    let mappingNotSerialisable = "mapping.notSerialisable"

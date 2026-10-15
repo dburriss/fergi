@@ -14,6 +14,7 @@
     <Compile Include="LayersTests.fs" />
     <Compile Include="MergeLawsTests.fs" />
     <Compile Include="MappingTests.fs" />
+    <Compile Include="MappingFileTests.fs" />
     <Compile Include="EndToEndTests.fs" />
     <Compile Include="BuilderTests.fs" />
     <Compile Include="AggregationTests.fs" />

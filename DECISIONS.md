@@ -19,6 +19,31 @@ Revisit if: the signals that should reopen it.
 See: files, docs or commits.
 ```
 
+## Mapping file format: one-key rules, tagged arguments, the codec in core
+Date: 2026-10-15. Status: Accepted.
+
+Decision: a mapping serialises as `{version, inputs, inputLists?, rules}`. A rule is an object with one key
+naming the rule; an argument is `{from}`, `{doc}` or `{value}`. `Mapping.toNode` / `ofNode` / `ofParsed` live in
+`Fergi` (over `Node`, so Fable-safe). Writing fails with one `mapping.notSerialisable` error per offender
+(an `Ensure` hook, a host function, a path that does not read back) instead of dropping them.
+
+Why: the file is the contract for producers in other languages, so it has to be explicit and versioned. One-key
+rules map one to one onto the union cases and keep the schema flat. Tagged arguments keep a pointer apart from
+a literal string. Failing loudly means a producer learns at write time that the file would not mean the same
+thing, rather than at run time.
+
+Rejected: a `type` field inside each rule (`{type: copy, ...}`): same information, more room for a missing or
+misspelled tag. Silently dropping hooks and host functions: the written file would run differently from the
+mapping. Checking input and function names in `ofNode`: the names are validated at run, and a reader that
+needs the registry cannot be a plain decoder; a standalone `Mapping.validate` is the place (`STATUS.md`).
+
+Costs: the field names are now a public contract (bump `version` to change them). `Files` has no file form yet.
+
+Revisit if: a producer needs a second file version at once, or the one-key shape is awkward in a language's
+type system.
+
+See: `ARCHITECTURE.md` (Mapping file shape), `docs/mapping.schema.json`, `tests/Fergi.Tests/MappingFileTests.fs`.
+
 ## Mapping files are generated: no YAML sanitiser, no expression files
 Date: 2026-10-15. Status: Accepted.
 

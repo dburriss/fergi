@@ -34,7 +34,7 @@ follows from that:
 
 - **The serialised form is the contract.** Mapping files are expected to be produced by a program (a build
   step, a generator, a script in any language), then run by a CLI, so what must be stable is the file format,
-  not an F# API. The format does not exist yet (`STATUS.md` Next, item 7).
+  not an F# API (see "Mapping file shape" below).
 - **No language depends on another's builders.** The F# builders compile under Fable to JS and Python, but the
   generated names carry hash suffixes and are not a usable API (a builder call becomes nested
   `MappingBuilder__Compute_3B2A1428(...)` calls). A Python or TypeScript author writes the data form, or a
@@ -66,19 +66,20 @@ problem it can find before any file is loaded, and a run stops at the first fail
 never see a state that did not exist. A registered function is expected not to throw, but the engine does not
 trust that: an exception inside one becomes a `compute.failed` error like any other failure.
 
-## Mapping file shape (sketch, not built)
+## Mapping file shape
 
-Status: a proposal for the serialised form of `Mapping`. Nothing reads or writes it yet (`STATUS.md` Next,
-items 7 and 8), and the field names below are not agreed. It is recorded so the next session starts from it.
-
-The file is itself a document, so it is a `Node` and can be YAML or JSON. `Mapping.toNode` / `Mapping.ofNode`
-would convert, and the existing printers and parsers do the text. Generated files should default to JSON: no
-quoting questions, easy to diff.
+`Mapping.toNode` writes a mapping as a `Node` and `Mapping.ofNode` reads it back (`Mapping.ofParsed` also fills
+each error's line and column from the parser's spans). They live in `src/Fergi/Mapping.fs`, are pure and
+Fable-safe, and the existing adapters do the text. Generated files should default to JSON: no quoting
+questions, easy to diff. `docs/mapping.schema.json` is the JSON Schema for editors and other producers.
 
 ```yaml
 version: 1
 inputs: [person, org]
+inputLists: [services]            # only when there are any
 rules:
+  - layer: [org, person]
+  - listsBy: { path: /ports, key: name }
   - copy: { from: "person:/name", to: /metadata/name }
   - set: { to: /kind, value: service }
   - compute:
@@ -87,28 +88,35 @@ rules:
       args:
         - { value: " " }
         - { from: "person:/first" }
-        - { from: "person:/last" }
-  - jsonata:
-      to: /owner
-      expr: org.teams[id = $doc.teamId].name
+        - { doc: /last }
+  - collect:
+      input: services
+      into: /services
+      entry: [ { copy: { from: "services:/name", to: /name } } ]
+      sortBy: /name
 ```
 
 - **A rule is an object with one key** naming the rule, whose value holds its fields: the F# union case as data.
+  The rules are `layer`, `listsBy`, `conflict` (`lastWins`, `firstWins`, `fail`), `nullDeletes`, `copy`,
+  `rename`, `defaultTo`, `set`, `drop`, `collect` and `compute`.
 - **Arguments are tagged**, because a bare string cannot say whether it is a pointer or a literal. `from` is a
   pointer into a named input (`input:/path`, as `Arg.Input`), `doc` is a pointer into the document built so
   far (`Arg.Doc`), and `value` is a fixed value (`Arg.Literal`), which YAML types natively: ints, bools and
   nulls survive.
-- **`jsonata` is sugar** for `fn: jsonata` with the expression as a literal and the context set to all inputs
-  as one object keyed by input name, with `$doc` for the output so far. That needs an `Arg.Inputs` case that
-  does not exist yet. See `DECISIONS.md` and `docs/jsonata.md`.
-- **`version`** is required: files outlive the code that reads them.
-- **Only `copy`, `set`, `compute`, `jsonata` and `layer: [names]` were sketched.** The other rules (`ListsBy`,
-  `Conflict`, `NullDeletes`, `Rename`, `DefaultTo`, `Drop`, `Collect`) follow the same pattern; their field
-  names are open. `Files` (where the inputs live, and the output) is data too, and its shape was not sketched.
-- **Not in the file:** `Ensure` hooks, and the code of any custom function. A file names a function, and
-  whoever runs it supplies the function (`mapping.functionUnknown` otherwise).
+- **`version`** is required and must be `1`; another number is `mapping.version`. Files outlive the code that
+  reads them. A top-level `$schema` key is accepted and ignored.
+- **Reading reports every problem it finds**, each with the `Path` of the place in the file (and, through
+  `ofParsed`, the line and column). It checks shape, types and selector syntax. It does not check that input
+  and function names are declared: `Fergi.run` does, and the standalone `Mapping.validate` (`STATUS.md` Next,
+  item 8) will.
+- **Writing fails, listing every offender, when the mapping holds something a file cannot say**
+  (`mapping.notSerialisable`): an `Ensure` hook (code), a function registered with `Mapping.withFunction` (it
+  runs only in the process that registered it; the built-ins and the name `jsonata` are written by name, and
+  an unregistered name is written too, since validation reports it), and a selector or pointer that does not
+  read back as itself (a `Where` key containing `=`, a numeric object key that would read back as an index).
+- **Not in the file:** `Ensure` hooks, the code of any custom function, and `Files` (where the inputs live; its
+  shape is not decided). A `Timestamp` literal is a string once it has been through JSON text.
+- **Not built yet:** the `jsonata` rule sugar (needs `Arg.Inputs`, `STATUS.md` item 9).
 
-What the format must guarantee: `ofNode (toNode m) = m` for every serialisable mapping, validation errors that
-point at the file location, and the same behaviour under Fable JS and Python (the codec works on `Node`, so it
-can live in the core). A generated file gets its quoting from the printer; hand-writing rules for YAML are in
-`docs/jsonata.md`.
+`ofNode (toNode m)` gives back the inputs and rules of `m`, and a mapping read from a file runs like the one it
+was written from (both are tested, through JSON and YAML text, on .NET, Fable JS and Fable Python).

@@ -1,0 +1,224 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/fergi/mapping.schema.json",
+  "title": "Fergi mapping file (version 1)",
+  "description": "The serialised form of a Fergi Mapping (Mapping.toNode / Mapping.ofNode). Works for JSON and YAML files. Whether input and function names are declared is checked when the mapping runs, not by this schema.",
+  "type": "object",
+  "required": ["version", "inputs", "rules"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "const": 1 },
+    "inputs": {
+      "description": "Names of the single-file inputs.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "inputLists": {
+      "description": "Names of inputs that stand for a list of files (used by collect).",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "rules": { "type": "array", "items": { "$ref": "#/$defs/rule" } }
+  },
+  "$defs": {
+    "selector": {
+      "description": "A JSON Pointer, where a segment written [key=value] picks the array item whose string field key equals value. The empty string is the root.",
+      "type": "string",
+      "pattern": "^(/.*)?$"
+    },
+    "pointer": {
+      "description": "A plain JSON Pointer (RFC 6901).",
+      "type": "string",
+      "pattern": "^(/.*)?$"
+    },
+    "source": {
+      "description": "input:/pointer, a selector into the named input.",
+      "type": "string",
+      "pattern": "^[^:]+:(/.*)?$"
+    },
+    "arg": {
+      "description": "One argument of a compute rule: from (a value in a named input), doc (a value in the document built so far) or value (a fixed value).",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["from"],
+          "additionalProperties": false,
+          "properties": { "from": { "$ref": "#/$defs/source" } }
+        },
+        {
+          "type": "object",
+          "required": ["doc"],
+          "additionalProperties": false,
+          "properties": { "doc": { "$ref": "#/$defs/selector" } }
+        },
+        {
+          "type": "object",
+          "required": ["value"],
+          "additionalProperties": false,
+          "properties": { "value": true }
+        }
+      ]
+    },
+    "rule": {
+      "description": "An object with exactly one key, naming the rule.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["layer"],
+          "additionalProperties": false,
+          "properties": {
+            "layer": {
+              "description": "Merge these inputs, in order, into the starting document. At most one per mapping.",
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["listsBy"],
+          "additionalProperties": false,
+          "properties": {
+            "listsBy": {
+              "description": "Merge the list at path by the string field key.",
+              "type": "object",
+              "required": ["path", "key"],
+              "additionalProperties": false,
+              "properties": { "path": { "$ref": "#/$defs/pointer" }, "key": { "type": "string" } }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["conflict"],
+          "additionalProperties": false,
+          "properties": {
+            "conflict": {
+              "description": "How the layer merge reconciles values that cannot be combined. At most one per mapping.",
+              "enum": ["lastWins", "firstWins", "fail"]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["nullDeletes"],
+          "additionalProperties": false,
+          "properties": {
+            "nullDeletes": {
+              "description": "true (the default): a null in a later layer deletes the key. At most one per mapping.",
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["copy"],
+          "additionalProperties": false,
+          "properties": {
+            "copy": {
+              "description": "Copy the value at from (in a named input) to the selector to.",
+              "type": "object",
+              "required": ["from", "to"],
+              "additionalProperties": false,
+              "properties": { "from": { "$ref": "#/$defs/source" }, "to": { "$ref": "#/$defs/selector" } }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["rename"],
+          "additionalProperties": false,
+          "properties": {
+            "rename": {
+              "description": "Move the value at from to to.",
+              "type": "object",
+              "required": ["from", "to"],
+              "additionalProperties": false,
+              "properties": { "from": { "$ref": "#/$defs/selector" }, "to": { "$ref": "#/$defs/selector" } }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["defaultTo"],
+          "additionalProperties": false,
+          "properties": {
+            "defaultTo": {
+              "description": "Set the value only when the path is absent.",
+              "type": "object",
+              "required": ["to", "value"],
+              "additionalProperties": false,
+              "properties": { "to": { "$ref": "#/$defs/selector" }, "value": true }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["set"],
+          "additionalProperties": false,
+          "properties": {
+            "set": {
+              "description": "Set (create or overwrite) the value.",
+              "type": "object",
+              "required": ["to", "value"],
+              "additionalProperties": false,
+              "properties": { "to": { "$ref": "#/$defs/selector" }, "value": true }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["drop"],
+          "additionalProperties": false,
+          "properties": {
+            "drop": {
+              "description": "Remove the path. Dropping an absent path is a no-op.",
+              "type": "object",
+              "required": ["path"],
+              "additionalProperties": false,
+              "properties": { "path": { "$ref": "#/$defs/selector" } }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["collect"],
+          "additionalProperties": false,
+          "properties": {
+            "collect": {
+              "description": "One entry per file of an input list, built by the entry rules (copy, rename, defaultTo, set, drop, compute), set as a list at into.",
+              "type": "object",
+              "required": ["input", "into", "entry"],
+              "additionalProperties": false,
+              "properties": {
+                "input": { "type": "string" },
+                "into": { "$ref": "#/$defs/selector" },
+                "entry": { "type": "array", "items": { "$ref": "#/$defs/rule" } },
+                "sortBy": { "$ref": "#/$defs/selector" }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["compute"],
+          "additionalProperties": false,
+          "properties": {
+            "compute": {
+              "description": "Call the named function (a built-in, or one the runner supplies) on the arguments and set the result at to.",
+              "type": "object",
+              "required": ["to", "fn"],
+              "additionalProperties": false,
+              "properties": {
+                "to": { "$ref": "#/$defs/selector" },
+                "fn": { "type": "string" },
+                "args": { "type": "array", "items": { "$ref": "#/$defs/arg" } }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

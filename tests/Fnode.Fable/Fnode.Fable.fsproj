@@ -37,6 +37,7 @@
     <Compile Include="../Fergi.Tests/LayersTests.fs" Link="Fergi.Tests/LayersTests.fs" />
     <Compile Include="../Fergi.Tests/MergeLawsTests.fs" Link="Fergi.Tests/MergeLawsTests.fs" />
     <Compile Include="../Fergi.Tests/MappingTests.fs" Link="Fergi.Tests/MappingTests.fs" />
+    <Compile Include="../Fergi.Tests/MappingFileTests.fs" Link="Fergi.Tests/MappingFileTests.fs" />
     <Compile Include="../Fergi.Tests/EndToEndTests.fs" Link="Fergi.Tests/EndToEndTests.fs" />
     <Compile Include="../Fergi.Tests/BuilderTests.fs" Link="Fergi.Tests/BuilderTests.fs" />
     <Compile Include="../Fergi.Tests/AggregationTests.fs" Link="Fergi.Tests/AggregationTests.fs" />

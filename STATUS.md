@@ -2,19 +2,19 @@
 
 Snapshot of the Fnode / Fergi work. Design sources live in the `second-brain` vault: `Shared Document Core Design.md` (Fnode, the shared core) and `Fergi.md` (the merge/mapping library). Findings from the spike are in `docs/fergi-spike.md`; Fable notes are in `docs/fable.md`; how the pieces fit is in `ARCHITECTURE.md`; larger decisions with their rejected alternatives are in `DECISIONS.md`; rules for coding agents are in `AGENTS.md`.
 
-Last verified: 2026-10-15. `dotnet build Fergi.slnx -c Release` has 0 warnings. `dotnet test Fergi.slnx -c Release` passes 709 tests. `scripts/fable-test.sh all` passes 677 entries on Fable JS and on Fable Python. Nothing is published.
+Last verified: 2026-10-15. `dotnet build Fergi.slnx -c Release` has 0 warnings. `dotnet test Fergi.slnx -c Release` passes 730 tests. `scripts/fable-test.sh all` passes 698 entries on Fable JS and on Fable Python. Nothing is published.
 
 ## Delivery plan (from the Fnode design doc)
 
 | Step | Work | State |
 |---|---|---|
-| 1 | Core spike: `Node`, `Path` (JSON Pointer), `Node.tryGet/set/remove`, `Error`, `Parsed`, `Format` | Done |
-| 2 | `Fnode.Yaml` on .NET | Done, now also with positions and original timestamp text |
-| 3 | JSON library (`JsonValue`) plus `Fnode.Json`, shared conformance suite | Done. The JSON Test Suite passes with zero deviations |
-| 4 | Back-port to YamlValue: positions, timestamp text, Fable | Done in `../fsharp-yaml` (unreleased). Our projects also compile and test under Fable JS and Python |
-| 5 | Fergi spike consumes the core, IDP defaults-plus-overrides case end to end | Done, with a mapping data form, real YAML/JSON fixtures and provenance |
-| 6 | Publish `0.x` alpha prereleases of core and adapters | **Not started**. The P1/P2 API additions are in, so the core API shape is ready |
-| 7 | Falid consumes the core (`file:line:col` in the CLI) | Not started |
+| 1 | Core spike: `Node`, `Path` (JSON Pointer), `Node.tryGet/set/remove`, `Error`, `Parsed`, `Format` | [x] Done |
+| 2 | `Fnode.Yaml` on .NET | [x] Done, now also with positions and original timestamp text |
+| 3 | JSON library (`JsonValue`) plus `Fnode.Json`, shared conformance suite | [x] Done. The JSON Test Suite passes with zero deviations |
+| 4 | Back-port to YamlValue: positions, timestamp text, Fable | [x] Done in `../fsharp-yaml` (unreleased). Our projects also compile and test under Fable JS and Python |
+| 5 | Fergi spike consumes the core, IDP defaults-plus-overrides case end to end | [x] Done, with a mapping data form, real YAML/JSON fixtures and provenance |
+| 6 | Publish `0.x` alpha prereleases of core and adapters | [ ] **Not started**. The P1/P2 API additions are in, so the core API shape is ready |
+| 7 | Falid consumes the core (`file:line:col` in the CLI) | [ ] Not started |
 
 ## What is in this repo
 
@@ -24,13 +24,13 @@ Last verified: 2026-10-15. `dotnet build Fergi.slnx -c Release` has 0 warnings. 
 | `src/Fnode.Yaml` | YAML adapter over `FSharp.Data.YamlValue`. Fills `Parsed.Locations`, keeps timestamp text, parse errors carry a location |
 | `src/JsonValue` | Standalone JSON library (placeholder namespace `Fergi.Json`), positions built in, no dependencies |
 | `src/Fnode.Json` | JSON adapter over `JsonValue` |
-| `src/Fergi` | Selectors with `Where`, `Doc`, `Patch` (atomic apply, diff), `Policy`, `Doc.merge`/`layers` with provenance, `Mapping`/`Files` data form, `run`/`plan`/`runFiles`, aggregation (`inputList`, `Rule.Collect`), computed values (`Rule.Compute`, named functions from `Mapping.Functions`, built-ins in `Functions.builtins`), and the CEs `ops`, `docs`, `files`, `entry`, `mapping` |
+| `src/Fergi` | Selectors with `Where`, `Doc`, `Patch` (atomic apply, diff), `Policy`, `Doc.merge`/`layers` with provenance, `Mapping`/`Files` data form, `run`/`plan`/`runFiles`, aggregation (`inputList`, `Rule.Collect`), the file form (`Mapping.toNode`/`ofNode`/`ofParsed`, schema in `docs/mapping.schema.json`), computed values (`Rule.Compute`, named functions from `Mapping.Functions`, built-ins in `Functions.builtins`), and the CEs `ops`, `docs`, `files`, `entry`, `mapping` |
 | `src/Fergi.Jsonata` | **Spike, .NET only.** Registers a `jsonata` function (`Jsonata.Net.Native`) for `Rule.Compute`. There are no Fable (JS or Python) bindings yet. See `docs/jsonata.md` |
 | `tests/*` | Unit and property tests per project, `Fnode.Conformance` (shared YAML+JSON cases), `Fnode.Fable` (Fable harness), `Fergi.Tests` (includes the end-to-end billing case under `tests/Fergi.Tests/data/`) |
 | `tests/jsonata-conformance` | 90 JSONata expressions run through the .NET, JS and Python libraries with recorded expectations (73 portable, 17 divergent). `scripts/jsonata-conformance.sh` runs it |
 | `scripts/fable-test.sh` | Runs the shared test sources under Fable JS and Python (`js`, `python` or `all`) |
 
-Test counts on .NET: Fnode 30, JsonValue 323, Fnode.Json 11, Fnode.Yaml 57, Conformance 47, Fergi 226, Fergi.Jsonata 15. Fable runs 677 entries per target (Conformance counts differently there, every case still runs).
+Test counts on .NET: Fnode 30, JsonValue 323, Fnode.Json 11, Fnode.Yaml 57, Conformance 47, Fergi 247, Fergi.Jsonata 15. Fable runs 698 entries per target (Conformance counts differently there, every case still runs).
 
 ## Decisions made
 
@@ -72,19 +72,34 @@ Full detail and proposed fixes are in `docs/fergi-spike.md`.
 
 ## Next
 
-1. **Priority-1 Fnode API fixes before publishing** (from the findings doc): a public `Path` segment escape and parse, a creating set plus `exists`, a way to tell "absent" from "mismatch", and NaN-safe equality.
-2. Priority-2 fixes: object helpers (`tryFindKey`, upsert and remove by key, `hasDuplicateKeys`), structured context on `Error`, the numeric key vs `Index` pointer ambiguity.
-3. **Step 6:** check package names on NuGet, npm and PyPI (`Fnode` is a placeholder), decide the final name of `JsonValue`, swap `Fnode.Yaml` back to a released YamlValue package, then publish `0.x` alphas.
-4. Step 7: Falid consumes the core.
-5. Fergi, not yet started: three-way merge (use case 5), a default list strategy in the mapping form, provenance for rule-produced nodes and aggregated entries, `uniqueBy` and a keyed-object output for aggregation. Done: the computation expressions and custom operations (confirmed under Fable JS and Python) and aggregation across repos (use case 6), see `docs/fergi-spike.md` section 7.
-6. Update the `second-brain` notes with the amendments listed in `docs/fergi-spike.md` (`Policy.ListRules`, `Doc.get` returning `Result`, `Policy.defaults`, the `Where` selector, the Rule policy cases, the merge-law caveat), plus `Rule.Compute`, `Arg`, the `Functions` registry on `Mapping` and the JSONata decision (see `DECISIONS.md`), which change the "`Rule` is plain data" story in `Fergi.md`. `docs/fergi-spike.md` has no section on computed values yet either. Nothing in the vault was edited by this work.
-7. **Serialised mapping format** (the prerequisite for a CLI that runs mappings; mapping files are expected to be produced by a program, not hand-written): `Mapping.toNode` / `Mapping.ofNode` in the core (Fable-safe, over `Node`), JSON first, with a `version` field and tagged arguments (`{from}`, `{doc}`, `{value}`). Needs round-trip tests, validation errors that point at the file location, Fable coverage and a JSON Schema for editors. Nothing like it exists yet.
-8. A standalone `Mapping.validate` that a generating program can call before writing a file: unknown function names, input names, and JSONata syntax (`JsonataQuery` already reports a position). Today validation only runs inside `run`.
-9. JSONata in the builders: an `Arg.Inputs` case (all inputs as one object, keyed by input name, plus `$doc` for the output so far) and a `jsonata` custom operation that also registers the function. The builder's `Run` fills `Functions.builtins` today, so it needs a way to add to the registry. A whole-output `Rule.Transform` (JSONata builds the document) was discussed and deliberately left out.
-10. JSONata errors: exceptions from the library and non-value results (a function) are now `compute.failed` (done). Still open: carry the position inside the expression in the error. A thrown exception from any registered function is also caught by `Rule.Compute`.
-11. Fable bindings for JSONata: Python (`[<Import>]` of `jsonata-python`, synchronous) and JS (the npm `evaluate` is async, so the registry needs an async variant). Neither is written, and neither is confirmed to work under Fable.
-12. Decisions open on JSONata (see `docs/jsonata.md`): lint mappings down to the portable subset or allow all of JSONata, an external time limit for .NET (the library has no timeout option), and how to express `Ensure` hooks in a file (a declarative check rule or a JSONata predicate).
-13. Conformance suite: run it in CI (the repo has no CI config; the first run needs network), and re-record it with `scripts/jsonata-conformance.sh record` whenever a JSONata library version changes.
-14. Python users: either generate mapping files from Python (the mapping format is the contract) or write a hand-made facade over the Fable Python output, whose generated names carry hash suffixes and are not stable.
-15. **JSONata on .NET can return an invalid string.** `$substring` on a non-BMP character returns half of a surrogate pair without an error (found by the conformance suite; JS and Python return the whole character). The mapping then holds a corrupt string. Decide whether the JSONata boundary should reject results containing an unpaired surrogate (a `compute.failed`), and check what the YAML and JSON printers do with one.
-16. Cache the parsed `JsonataQuery` per expression: it is documented as immutable and thread-safe, and `Jsonata.eval` re-parses it on every call. No cost has been measured.
+1. [ ] **Priority-1 Fnode API fixes before publishing** (from the findings doc): a public `Path` segment escape and parse, a creating set plus `exists`, a way to tell "absent" from "mismatch", and NaN-safe equality.
+2. [ ] Priority-2 fixes: object helpers (`tryFindKey`, upsert and remove by key, `hasDuplicateKeys`), structured context on `Error`, the numeric key vs `Index` pointer ambiguity.
+3. [ ] **Step 6:** check package names on NuGet, npm and PyPI (`Fnode` is a placeholder), decide the final name of `JsonValue`, swap `Fnode.Yaml` back to a released YamlValue package, then publish `0.x` alphas.
+4. [ ] Step 7: Falid consumes the core.
+5. [ ] Fergi features (see `docs/fergi-spike.md` section 7):
+    - [x] The computation expressions and custom operations (confirmed under Fable JS and Python).
+    - [x] Aggregation across repos (use case 6).
+    - [ ] Three-way merge (use case 5).
+    - [ ] A default list strategy in the mapping form.
+    - [ ] Provenance for rule-produced nodes and aggregated entries.
+    - [ ] `uniqueBy` and a keyed-object output for aggregation.
+6. [ ] Update the `second-brain` notes with the amendments listed in `docs/fergi-spike.md` (`Policy.ListRules`, `Doc.get` returning `Result`, `Policy.defaults`, the `Where` selector, the Rule policy cases, the merge-law caveat), plus `Rule.Compute`, `Arg`, the `Functions` registry on `Mapping` and the JSONata decision (see `DECISIONS.md`), which change the "`Rule` is plain data" story in `Fergi.md`. `docs/fergi-spike.md` has no section on computed values yet either. Nothing in the vault was edited by this work.
+7. [ ] **Serialised mapping format** (built, one check left): `Mapping.toNode` / `ofNode` / `ofParsed` in `src/Fergi/Mapping.fs`, JSON or YAML text through the adapters, `version` 1, one-key rules, tagged arguments (`{from}`, `{doc}`, `{value}`), a JSON Schema in `docs/mapping.schema.json`. Round trips and runs from a file are tested through JSON and YAML text on .NET, Fable JS and Python. Reading reports every problem with a path (a line and column through `ofParsed`). Writing returns one `mapping.notSerialisable` error per offender (`Ensure` hook, host function, a path that does not read back). Shape in `ARCHITECTURE.md`, reasoning in `DECISIONS.md`. Open inside this item:
+    - [ ] The schema is not run against files in a test (no validator is installed here); it was only checked to be valid JSON. Validate the generated fixtures against it once a validator is available.
+8. [ ] A standalone `Mapping.validate` that a generating program can call before writing a file: unknown function names, input names, and JSONata syntax (`JsonataQuery` already reports a position). Today validation only runs inside `run`.
+9. [ ] JSONata in the builders: an `Arg.Inputs` case (all inputs as one object, keyed by input name, plus `$doc` for the output so far) and a `jsonata` custom operation that also registers the function. The builder's `Run` fills `Functions.builtins` today, so it needs a way to add to the registry. A whole-output `Rule.Transform` (JSONata builds the document) was discussed and deliberately left out.
+10. [ ] JSONata errors:
+    - [x] Exceptions from the library and non-value results (a function) are `compute.failed`. A thrown exception from any registered function is also caught by `Rule.Compute`.
+    - [ ] Carry the position inside the expression in the error.
+11. [ ] Fable bindings for JSONata: Python (`[<Import>]` of `jsonata-python`, synchronous) and JS (the npm `evaluate` is async, so the registry needs an async variant). Neither is written, and neither is confirmed to work under Fable.
+12. [ ] Decisions open on JSONata (see `docs/jsonata.md`): lint mappings down to the portable subset or allow all of JSONata, an external time limit for .NET (the library has no timeout option), and how to express `Ensure` hooks in a file (a declarative check rule or a JSONata predicate).
+13. [ ] Conformance suite: run it in CI (the repo has no CI config; the first run needs network), and re-record it with `scripts/jsonata-conformance.sh record` whenever a JSONata library version changes.
+14. [ ] **Producers in other languages** (the driver is a Python producer of mapping files; JS, TS and more languages expected later). The CLI is the only executor, so a producer only has to write the file; the mapping format plus its schema is the contract. Two ways to build the producer API, undecided:
+    - **Hand-written per language** (about 100 lines of dicts and JSON): idiomatic, no runtime dependency, but each language is a new builder and can drift from the reader.
+    - **F# facade compiled by Fable**: one source, the format defined once by `Mapping.toNode`, a few `#if` lines per language. Findings from a scratch experiment (not in this repo): the generated `Builders.fs` output is unusable as an API (computation expressions are compiler sugar, so JS and Python get hashed names like `OpsBuilder__Yield_42ADAC0B` and `FSharpList`/`FSharpResult` types). `[<AttachMembers>]` on a class gives real classes with working chaining. `[<CompiledName>]` inside `#if FABLE_COMPILER_PYTHON` / `#if FABLE_COMPILER_JAVASCRIPT` gives different names per target (`to_json` vs `toJson`) from one source. The facade must take and return only strings, numbers, arrays and dicts. Not checked: records, unions, static members, the quality of the type hints, the TypeScript target, and any language Fable does not support (it would need a hand-written builder). Users would also need `fable-library` and a release per ecosystem.
+    - **Later option, a consumer facade:** the same compiled core could also run mappings in-process (`run`, `plan`, `Doc.merge`) from Python, JS or TS without the CLI. Not planned until someone has a concrete use. It is a bigger API than the producer one (documents, errors with positions, provenance, plans, policies), and the JSONata runtimes disagree on 17 of 90 cases, so in-process runs would have to stick to the portable subset (or treat the .NET result as the reference). The Fable bindings for JSONata (item 11) are not written. Two executors need the corpus below run against every runtime, not only the CLI.
+    - **Host functions instead of JSONata, in-process:** the consumer facade would let a host-language lambda be registered by name in `Mapping.Functions` (the existing `Node list -> Result<Node, string>` registry), so a Python or JS user computes values in their own language and avoids the JSONata divergence. A file can only reference such a function by name, so mappings split into portable ones (built-ins, JSONata) and ones that only run where the function is registered; `Mapping.validate` (item 8) should report which, so a producer knows before writing the file. The registry is synchronous, so an `async` JS function needs an async variant (same issue as item 11). A host exception or throw should become `compute.failed` with the original message. `each` and `Ensure` lambdas have the same in-process-only limit. Not built.
+    - Either way, keep a shared corpus of mapping files and expected outputs, so every producer is checked against the same files. Decide after item 7, with a facade experiment against the real `Mapping.toNode`.
+15. [ ] **JSONata on .NET can return an invalid string.** `$substring` on a non-BMP character returns half of a surrogate pair without an error (found by the conformance suite; JS and Python return the whole character). The mapping then holds a corrupt string. Decide whether the JSONata boundary should reject results containing an unpaired surrogate (a `compute.failed`), and check what the YAML and JSON printers do with one.
+16. [ ] Cache the parsed `JsonataQuery` per expression: it is documented as immutable and thread-safe, and `Jsonata.eval` re-parses it on every call. No cost has been measured.
+17. [ ] **A file form for `Files`** (where the inputs live and the output goes). The mapping file does not cover it, and a CLI that runs mappings needs it. Decide whether it sits in the same file or a second one, then add `Files.toNode` / `ofNode` with the same error rules as the mapping codec.
