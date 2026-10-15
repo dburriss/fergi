@@ -1,8 +1,8 @@
 # Status
 
-Snapshot of the Fnode / Fergi work. Design sources live in the `second-brain` vault: `Shared Document Core Design.md` (Fnode, the shared core) and `Fergi.md` (the merge/mapping library). Findings from the spike are in `docs/fergi-spike.md`; Fable notes are in `docs/fable.md`.
+Snapshot of the Fnode / Fergi work. Design sources live in the `second-brain` vault: `Shared Document Core Design.md` (Fnode, the shared core) and `Fergi.md` (the merge/mapping library). Findings from the spike are in `docs/fergi-spike.md`; Fable notes are in `docs/fable.md`; how the pieces fit is in `ARCHITECTURE.md`; larger decisions with their rejected alternatives are in `DECISIONS.md`; rules for coding agents are in `AGENTS.md`.
 
-Last verified: 2026-10-15. `dotnet build Fergi.slnx -c Release` has 0 warnings. `dotnet test Fergi.slnx -c Release` passes 706 tests. `scripts/fable-test.sh all` passes 676 entries on Fable JS and on Fable Python. Nothing is published.
+Last verified: 2026-10-15. `dotnet build Fergi.slnx -c Release` has 0 warnings. `dotnet test Fergi.slnx -c Release` passes 709 tests. `scripts/fable-test.sh all` passes 677 entries on Fable JS and on Fable Python. Nothing is published.
 
 ## Delivery plan (from the Fnode design doc)
 
@@ -30,7 +30,7 @@ Last verified: 2026-10-15. `dotnet build Fergi.slnx -c Release` has 0 warnings. 
 | `tests/jsonata-conformance` | 90 JSONata expressions run through the .NET, JS and Python libraries with recorded expectations (73 portable, 17 divergent). `scripts/jsonata-conformance.sh` runs it |
 | `scripts/fable-test.sh` | Runs the shared test sources under Fable JS and Python (`js`, `python` or `all`) |
 
-Test counts on .NET: Fnode 30, JsonValue 323, Fnode.Json 11, Fnode.Yaml 57, Conformance 47, Fergi 225, Fergi.Jsonata 13. Fable runs 676 entries per target (Conformance counts differently there, every case still runs).
+Test counts on .NET: Fnode 30, JsonValue 323, Fnode.Json 11, Fnode.Yaml 57, Conformance 47, Fergi 226, Fergi.Jsonata 15. Fable runs 677 entries per target (Conformance counts differently there, every case still runs).
 
 ## Decisions made
 
@@ -77,12 +77,14 @@ Full detail and proposed fixes are in `docs/fergi-spike.md`.
 3. **Step 6:** check package names on NuGet, npm and PyPI (`Fnode` is a placeholder), decide the final name of `JsonValue`, swap `Fnode.Yaml` back to a released YamlValue package, then publish `0.x` alphas.
 4. Step 7: Falid consumes the core.
 5. Fergi, not yet started: three-way merge (use case 5), a default list strategy in the mapping form, provenance for rule-produced nodes and aggregated entries, `uniqueBy` and a keyed-object output for aggregation. Done: the computation expressions and custom operations (confirmed under Fable JS and Python) and aggregation across repos (use case 6), see `docs/fergi-spike.md` section 7.
-6. Update the `second-brain` notes with the amendments listed in `docs/fergi-spike.md` (`Policy.ListRules`, `Doc.get` returning `Result`, `Policy.defaults`, the `Where` selector, the Rule policy cases, the merge-law caveat). Nothing in the vault was edited by this work.
+6. Update the `second-brain` notes with the amendments listed in `docs/fergi-spike.md` (`Policy.ListRules`, `Doc.get` returning `Result`, `Policy.defaults`, the `Where` selector, the Rule policy cases, the merge-law caveat), plus `Rule.Compute`, `Arg`, the `Functions` registry on `Mapping` and the JSONata decision (see `DECISIONS.md`), which change the "`Rule` is plain data" story in `Fergi.md`. `docs/fergi-spike.md` has no section on computed values yet either. Nothing in the vault was edited by this work.
 7. **Serialised mapping format** (the prerequisite for a CLI that runs mappings; mapping files are expected to be produced by a program, not hand-written): `Mapping.toNode` / `Mapping.ofNode` in the core (Fable-safe, over `Node`), JSON first, with a `version` field and tagged arguments (`{from}`, `{doc}`, `{value}`). Needs round-trip tests, validation errors that point at the file location, Fable coverage and a JSON Schema for editors. Nothing like it exists yet.
 8. A standalone `Mapping.validate` that a generating program can call before writing a file: unknown function names, input names, and JSONata syntax (`JsonataQuery` already reports a position). Today validation only runs inside `run`.
 9. JSONata in the builders: an `Arg.Inputs` case (all inputs as one object, keyed by input name, plus `$doc` for the output so far) and a `jsonata` custom operation that also registers the function. The builder's `Run` fills `Functions.builtins` today, so it needs a way to add to the registry. A whole-output `Rule.Transform` (JSONata builds the document) was discussed and deliberately left out.
-10. JSONata errors: wrap library failures as `compute.failed` with the expression and the position inside it. Today the spike returns the library's message and code.
+10. JSONata errors: exceptions from the library and non-value results (a function) are now `compute.failed` (done). Still open: carry the position inside the expression in the error. A thrown exception from any registered function is also caught by `Rule.Compute`.
 11. Fable bindings for JSONata: Python (`[<Import>]` of `jsonata-python`, synchronous) and JS (the npm `evaluate` is async, so the registry needs an async variant). Neither is written, and neither is confirmed to work under Fable.
 12. Decisions open on JSONata (see `docs/jsonata.md`): lint mappings down to the portable subset or allow all of JSONata, an external time limit for .NET (the library has no timeout option), and how to express `Ensure` hooks in a file (a declarative check rule or a JSONata predicate).
 13. Conformance suite: run it in CI (the repo has no CI config; the first run needs network), and re-record it with `scripts/jsonata-conformance.sh record` whenever a JSONata library version changes.
 14. Python users: either generate mapping files from Python (the mapping format is the contract) or write a hand-made facade over the Fable Python output, whose generated names carry hash suffixes and are not stable.
+15. **JSONata on .NET can return an invalid string.** `$substring` on a non-BMP character returns half of a surrogate pair without an error (found by the conformance suite; JS and Python return the whole character). The mapping then holds a corrupt string. Decide whether the JSONata boundary should reject results containing an unpaired surrogate (a `compute.failed`), and check what the YAML and JSON printers do with one.
+16. Cache the parsed `JsonataQuery` per expression: it is documented as immutable and thread-safe, and `Jsonata.eval` re-parses it on every call. No cost has been measured.

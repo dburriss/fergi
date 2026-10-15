@@ -63,7 +63,8 @@ is .NET-only) lives in its own package and plugs in through `Mapping.Functions`;
 Operations return `Result<_, Error list>`. An `Error` has a stable code, a path, an optional source location
 and context entries (the rule index and kind, the input, the file, the function). Validation reports every
 problem it can find before any file is loaded, and a run stops at the first failing rule, so later rules
-never see a state that did not exist.
+never see a state that did not exist. A registered function is expected not to throw, but the engine does not
+trust that: an exception inside one becomes a `compute.failed` error like any other failure.
 
 ## Mapping file shape (sketch, not built)
 

@@ -19,6 +19,33 @@ Revisit if: the signals that should reopen it.
 See: files, docs or commits.
 ```
 
+## Mapping files are generated: no YAML sanitiser, no expression files
+Date: 2026-10-15. Status: Accepted.
+
+Decision: the serialised mapping is produced by a program and written through the YAML or JSON printer, so
+the writer does the quoting. We do not pre-process hand-written YAML to repair expressions, and we do not
+add an `expr-file` key that loads an expression from a separate file. Hand-writing is supported only by
+documenting the pitfalls (`docs/jsonata.md`: use a block scalar or quote the whole expression).
+
+Why: JSONata uses characters YAML treats specially (`: `, ` #`, quotes, `{`, a leading `&`). A plain-scalar
+` #` silently cuts the expression short, so the dangerous case produces valid but wrong output, not an error.
+A text pre-pass would have to guess intent (`#` is also JSONata's positional operator), would shift error
+columns, and would turn the files into a YAML dialect that other tools misread. A generating program has none
+of these problems.
+
+Rejected:
+- **A sanitising pre-pass over the YAML text**: guesses intent, breaks locations, makes a dialect.
+- **`expr-file`** (an expression in its own `.jsonata` file): it would avoid the quoting problem and give
+  syntax highlighting, but it only matters for hand-written files, which we do not expect.
+- **Lint for a plain scalar whose source line contains ` #`**: possible from `Parsed.Locations`, and the
+  right fix if hand-written files turn out to be common.
+
+Costs: a hand-written mapping can silently truncate an expression until someone reads the docs.
+
+Revisit if: people write mapping files by hand in practice. Then add the lint first, `expr-file` second.
+
+See: `ARCHITECTURE.md` (mapping file shape), `docs/jsonata.md` (hand-writing a mapping file).
+
 ## JSONata is the expression language for computed values in mappings
 Date: 2026-10-15. Status: Spike (works on .NET; the Fable JS and Python bindings are not written).
 
