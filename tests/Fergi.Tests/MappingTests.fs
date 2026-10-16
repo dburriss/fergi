@@ -378,6 +378,23 @@ let ``Ensure failure with no detail still reports one error`` () =
     | Error [ e ] -> Assert.Equal(ErrorCodes.ensureFailed, e.Code)
     | other -> failwithf "unexpected %A" other
 
+[<Fact>]
+let ``Ensure hook that throws is reported and the other hooks still run`` () =
+    let load, _ = loader store
+    let m =
+        mk [ layerAll ]
+        |> Mapping.ensure "boom" (fun _ -> failwith "kaboom")
+        |> Mapping.ensure "name" (fun _ -> Error [ Error.create ErrorCode.pathNotFound "second" (ptr "/name") ])
+    match Fergi.run m files load with
+    | Error [ thrown; second ] ->
+        Assert.Equal(ErrorCodes.ensureFailed, thrown.Code)
+        Assert.Contains("boom", thrown.Message)
+        Assert.Contains("kaboom", thrown.Message)
+        Assert.Equal<(string * string) list>([ "ensure", "boom" ], thrown.Context)
+        Assert.Equal(ErrorCodes.ensureFailed, second.Code)
+        Assert.Equal<(string * string) list>([ "ensure", "name" ], second.Context)
+    | other -> failwithf "unexpected %A" other
+
 // ---- plan ----
 
 [<Fact>]

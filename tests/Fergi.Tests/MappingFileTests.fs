@@ -107,7 +107,7 @@ let ``an Ensure hook is reported by name`` () =
     Assert.Equal(2, es.Length)
     Assert.All(es, fun e -> Assert.Equal(ErrorCodes.mappingNotSerialisable, e.Code))
     Assert.Equal<(string * string) list list>([ [ "ensure", "has-name" ]; [ "ensure", "other" ] ], es |> List.map (fun e -> e.Context))
-    Assert.Contains("declarative check rule", es.Head.Message)
+    Assert.Contains("jsonata or falid ensure", es.Head.Message)
 
 [<Fact>]
 let ``a host function is reported with its name and the path of the rule`` () =

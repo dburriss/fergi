@@ -19,6 +19,32 @@ Revisit if: the signals that should reopen it.
 See: files, docs or commits.
 ```
 
+## Ensure comes in flavours; the closure flavour is in-process only
+Date: 2026-10-16. Status: Accepted (closure flavour); the `jsonata` and `falid` flavours are not built.
+
+Decision: `Ensure` has three flavours. `fn` (a closure, `Node -> Result<unit, Error list>`) is for people who
+want their own language instead of JSONata or the built-ins; it exists only in the program that runs the
+mapping and is never written to a file. The file flavours are `jsonata` (a predicate expression) and `falid`
+(a reference to a Falid rules file, which serialises to data like Fergi). A closure hook that throws is
+reported as `ensure.failed` instead of taking the run down.
+
+Why: the file form has to stay plain data, so a closure can never be in it, but the programmatic use is worth
+keeping as it is. Falid is a separate library that already has a data form, so it fits as its own flavour
+rather than being folded into Fergi.
+
+Rejected: registering closures under names so a file can reference them (a file could then name a hook another
+program never registered, and `toNode` could no longer refuse a hook it cannot write); replacing closures with
+a name registry (breaks the `ensure` builder API for no gain); one declarative check rule for everything (too
+small for what Falid does).
+
+Costs: three mechanisms to document and validate. A file never carries closure checks, so a mapping that relies
+on one runs checked only where the host supplies it.
+
+Revisit if: the `jsonata` and `falid` flavours turn out to need a shared check shape, or hosts keep wanting to
+name closures from files.
+
+See: `STATUS.md` items 12, 18, 19, `src/Fergi/Run.fs` (`runEnsure`), `src/Fergi/Mapping.fs` (`toNode`).
+
 ## Mapping file format: one-key rules, tagged arguments, the codec in core
 Date: 2026-10-15. Status: Accepted.
 

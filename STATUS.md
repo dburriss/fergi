@@ -2,7 +2,7 @@
 
 Snapshot of the Fnode / Fergi work. Design sources live in the `second-brain` vault: `Shared Document Core Design.md` (Fnode, the shared core) and `Fergi.md` (the merge/mapping library). Findings from the spike are in `docs/fergi-spike.md`; Fable notes are in `docs/fable.md`; how the pieces fit is in `ARCHITECTURE.md`; larger decisions with their rejected alternatives are in `DECISIONS.md`; rules for coding agents are in `AGENTS.md`.
 
-Last verified: 2026-10-15. `dotnet build Fergi.slnx -c Release` has 0 warnings. `dotnet test Fergi.slnx -c Release` passes 732 tests. `scripts/fable-test.sh all` passes 699 entries on Fable JS and on Fable Python. Nothing is published.
+Last verified: 2026-10-16. `dotnet build Fergi.slnx -c Release` has 0 warnings. `dotnet test Fergi.slnx -c Release` passes 733 tests. `scripts/fable-test.sh all` passes 700 entries on Fable JS and on Fable Python. Nothing is published.
 
 ## Delivery plan (from the Fnode design doc)
 
@@ -30,7 +30,7 @@ Last verified: 2026-10-15. `dotnet build Fergi.slnx -c Release` has 0 warnings. 
 | `tests/jsonata-conformance` | 90 JSONata expressions run through the .NET, JS and Python libraries with recorded expectations (73 portable, 17 divergent). `scripts/jsonata-conformance.sh` runs it |
 | `scripts/fable-test.sh` | Runs the shared test sources under Fable JS and Python (`js`, `python` or `all`) |
 
-Test counts on .NET: Fnode 30, JsonValue 323, Fnode.Json 11, Fnode.Yaml 57, Conformance 47, Fergi 248, Fergi.Jsonata 16. Fable runs 699 entries per target (Conformance counts differently there, every case still runs).
+Test counts on .NET: Fnode 30, JsonValue 323, Fnode.Json 11, Fnode.Yaml 57, Conformance 47, Fergi 249, Fergi.Jsonata 16. Fable runs 700 entries per target (Conformance counts differently there, every case still runs).
 
 ## Decisions made
 
@@ -42,6 +42,7 @@ Test counts on .NET: Fnode 30, JsonValue 323, Fnode.Json 11, Fnode.Yaml 57, Conf
 - The mapping form separates mapping and files (the `files` variant in `Fergi.md`). `Rule` is plain data. `Ensure` hooks are a separate field so `Rule` stays serialisable. `Resolve` conflict handlers stay code-only.
 - `Op`, `ListStrategy`, `OnConflict`, `Rule` and `ConflictMode` all use `[<RequireQualifiedAccess>]`.
 - Loader signature is `string -> Result<Parsed, Error list>`. Merge conflicts carry the source file and a line and column.
+- `Ensure` comes in flavours: `fn` (a closure, in-process only, never in a file), `jsonata` and `falid` (the file flavours, not built). See `DECISIONS.md`.
 - Commits: conventional prefixes, no AI attribution lines.
 
 ## Related state in `../fsharp-yaml`
@@ -91,7 +92,7 @@ Full detail and proposed fixes are in `docs/fergi-spike.md`.
     - [x] Exceptions from the library and non-value results (a function) are `compute.failed`. A thrown exception from any registered function is also caught by `Rule.Compute`.
     - [ ] Carry the position inside the expression in the error.
 11. [ ] Fable bindings for JSONata: Python (`[<Import>]` of `jsonata-python`, synchronous) and JS (the npm `evaluate` is async, so the registry needs an async variant). Neither is written, and neither is confirmed to work under Fable.
-12. [ ] Decisions open on JSONata (see `docs/jsonata.md`): lint mappings down to the portable subset or allow all of JSONata, an external time limit for .NET (the library has no timeout option), and how to express `Ensure` hooks in a file (a declarative check rule or a JSONata predicate).
+12. [ ] Decisions open on JSONata (see `docs/jsonata.md`): lint mappings down to the portable subset or allow all of JSONata, and an external time limit for .NET (the library has no timeout option). How `Ensure` hooks are expressed in a file moved to items 18 and 19.
 13. [ ] Conformance suite: run it in CI (the repo has no CI config; the first run needs network), and re-record it with `scripts/jsonata-conformance.sh record` whenever a JSONata library version changes.
 14. [ ] **Producers in other languages** (the driver is a Python producer of mapping files; JS, TS and more languages expected later). The CLI is the only executor, so a producer only has to write the file; the mapping format plus its schema is the contract. Two ways to build the producer API, undecided:
     - **Hand-written per language** (about 100 lines of dicts and JSON): idiomatic, no runtime dependency, but each language is a new builder and can drift from the reader.
@@ -102,3 +103,5 @@ Full detail and proposed fixes are in `docs/fergi-spike.md`.
 15. [ ] **JSONata on .NET can return an invalid string.** `$substring` on a non-BMP character returns half of a surrogate pair without an error (found by the conformance suite; JS and Python return the whole character). The mapping then holds a corrupt string. Decide whether the JSONata boundary should reject results containing an unpaired surrogate (a `compute.failed`), and check what the YAML and JSON printers do with one.
 16. [ ] Cache the parsed `JsonataQuery` per expression: it is documented as immutable and thread-safe, and `Jsonata.eval` re-parses it on every call. No cost has been measured.
 17. [ ] **A file form for `Files`** (where the inputs live and the output goes). The mapping file does not cover it, and a CLI that runs mappings needs it. Decide whether it sits in the same file or a second one, then add `Files.toNode` / `ofNode` with the same error rules as the mapping codec.
+18. [ ] **`Ensure` flavour: `jsonata`.** (The `fn` closure flavour is done: `Mapping.ensure`, in-process only, never in a file; a throwing hook is reported as `ensure.failed`.) An ensure entry in the mapping file holding a literal JSONata expression used as a predicate over the output document. Only as portable as the JSONata subset (item 12), and `Jsonata.validate` should check its syntax. It reports through the same `ensure.failed` error as the closure flavour. The closure signature does not carry over, so the check shape for a file entry is decided here.
+19. [ ] **`Ensure` flavour: `falid`.** An ensure entry that points at a Falid rules file (or holds the rules inline; undecided). Falid also serialises to a data file, so the mapping stays plain data, and errors can carry `file:line:col`. Needs a check interface in Fergi and the adapter in its own project (for example `Fergi.Falid`), so Fergi core does not reference Falid. Depends on step 7.

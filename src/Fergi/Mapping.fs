@@ -324,7 +324,8 @@ module Mapping =
 
     /// Read a mapping from its file form. Every problem found is reported, each with the `Path` of the
     /// offending place in the file (use `ofParsed` to turn that into a line and column). The result has
-    /// the built-in functions only and no `Ensure` hooks; add host functions with `withFunction`. Whether
+    /// the built-in functions only and no closure `Ensure` hooks (those are code, so never in a file); add
+    /// host functions with `withFunction` and closure hooks with `ensure`. Whether
     /// input and function names are declared is checked by `Fergi.run`, not here.
     let ofNode (node: Node) : Result<Mapping, Error list> =
         match decObject [] [ "$schema"; "version"; "inputs"; "inputLists"; "rules" ] node with
@@ -456,15 +457,16 @@ module Mapping =
 
     /// Write a mapping in its file form (`ofNode (toNode m)` gives `m` back, apart from `Ensure` and the
     /// function registry, which are not part of it). Fails, listing every offender, when the mapping holds
-    /// something a file cannot say: an `Ensure` hook (code; a declarative check rule is the file form and
-    /// does not exist yet), a function registered with `withFunction` (it runs only where it was
+    /// something a file cannot say: an `Ensure` closure hook (code that exists only in the host program; the
+    /// file flavours, a `jsonata` or `falid` ensure, do not exist yet), a function registered with
+    /// `withFunction` (it runs only where it was
     /// registered), or a selector or pointer that does not read back as itself. Print the result with an
     /// adapter (JSON by default for generated files).
     let toNode (m: Mapping) : Result<Node, Error list> =
         let hooks =
             m.Ensure
             |> List.map (fun (name, _) ->
-                cannot [] ("Ensure hook '" + name + "' is code, so it cannot be written to a file. Check the result in the program that runs the mapping, or use a declarative check rule once one exists")
+                cannot [] ("Ensure hook '" + name + "' is a closure, which exists only in the host program, so it cannot be written to a file. Check the result in the program that runs the mapping, or use a jsonata or falid ensure once one exists")
                 |> List.map (Error.withContext "ensure" name))
             |> List.concat
         let rules = m.Rules |> List.mapi (fun i r -> encRule m [ Key "rules"; Index i ] r) |> collect

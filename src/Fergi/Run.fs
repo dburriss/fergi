@@ -328,7 +328,9 @@ module Fergi =
     let private runEnsure (m: Mapping) (result: Node) : Error list =
         m.Ensure
         |> List.collect (fun (name, check) ->
-            match check result with
+            // a closure hook is host code; a throw must not take the run down (as with `compute`)
+            let checked' = try check result with e -> Error [ Error.create ErrorCodes.ensureFailed ("Ensure '" + name + "' threw: " + e.Message) [] ]
+            match checked' with
             | Ok() -> []
             | Error [] -> [ err ErrorCodes.ensureFailed ("Ensure '" + name + "' failed") |> Error.withContext "ensure" name ]
             | Error es ->
