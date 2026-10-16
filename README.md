@@ -267,6 +267,11 @@ let m2 = Jsonata.register m      // adds the `jsonata` function to the registry
 The first argument is the expression, the second is the context (`$`), and all arguments after the
 expression are available as `$args`. Runtimes disagree on some JSONata behaviour (see `docs/jsonata.md`).
 
+## Examples
+
+`examples/readme.fsx` holds the snippets above as a runnable script (`dotnet fsi examples/readme.fsx` after a
+build). It uses toy data, so a few runs print an error on purpose.
+
 ## Build and test
 
 ```
