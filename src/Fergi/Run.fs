@@ -149,6 +149,7 @@ module Fergi =
         | Arg.Input(name, p) ->
             Doc.get p (Map.find name inputs)
             |> Result.mapError (Error.withContext "compute argument" (name + ":" + Selector.print p))
+        | Arg.Inputs -> Ok(Obj(inputs |> Map.toList))
 
     let private compute (fns: Map<string, Function>) (inputs: Map<string, Node>) (c: ComputeSpec) (doc: Node) : Result<Op list, Error> =
         let args =

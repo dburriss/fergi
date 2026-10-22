@@ -212,3 +212,22 @@ let ``a function that throws is compute.failed, not an exception`` () =
         Assert.Contains(("function", "boom"), e.Context)
         Assert.Contains(("dest", "/x"), e.Context)
     | other -> failwithf "unexpected %A" other
+
+[<Fact>]
+let ``Arg.Inputs hands the function every input keyed by name`` () =
+    let m =
+        mapping {
+            inputs [ "person"; "other" ]
+            layer [ "person" ]
+            func "keys" (fun args ->
+                match args with
+                | [ Obj kvs ] -> Ok(Str(kvs |> List.map fst |> String.concat ","))
+                | _ -> Error "expected one object")
+            compute "/keys" "keys" [ AllInputs ]
+        }
+        |> mustMapping
+    let f = { Inputs = Map.ofList [ "person", "person.yaml"; "other", "other.yaml" ]; InputLists = Map.empty; Output = "out.yaml" }
+    let docs = Map.ofList [ "person.yaml", person; "other.yaml", Obj [] ]
+    match Fergi.run m f (Loader.ofNodes docs) |> Result.map (Map.find "out.yaml") with
+    | Ok out -> Assert.Equal(Some(Str "other,person"), Node.tryGet [ Key "keys" ] out |> Result.toOption)
+    | Error es -> failwithf "%A" es

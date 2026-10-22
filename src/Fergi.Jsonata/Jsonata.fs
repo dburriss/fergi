@@ -65,15 +65,17 @@ module Jsonata =
         | UnsupportedResult msg -> Error msg
         | e -> Error(e.GetType().Name + ": " + e.Message)
 
-    /// The registered function: `jsonata <expression> <context> [more...]`. The expression is a literal string,
-    /// the second argument is the context (`$`), and every argument after the expression is also available as
-    /// the array `$args`.
+    /// The registered function: `jsonata <expression> <context> [doc] [more...]`. The expression is a literal
+    /// string, the second argument is the context (`$`), the third (if any) is bound to `$doc`, and every
+    /// argument after the expression is also available as the array `$args`. The builder's `jsonata`
+    /// operation passes `Arg.Inputs` and the output so far.
     let jsonata : Function =
         fun args ->
             match args with
             | Str expr :: rest ->
                 let context = match rest with c :: _ -> c | [] -> Null
-                eval expr context [ "args", Arr rest ]
+                let doc = match rest with _ :: d :: _ -> [ "doc", d ] | _ -> []
+                eval expr context ([ "args", Arr rest ] @ doc)
             | _ -> Error "jsonata expects the expression (a string) as its first argument"
 
     /// Make `jsonata` callable from the mapping's `Compute` rules.
@@ -106,3 +108,22 @@ module Jsonata =
                 | _ -> [])
             |> List.concat
         Mapping.validate m @ check "" m.Rules
+
+/// The `jsonata` operation of the `mapping` builder. Open `Fergi.Jsonata` to get it.
+[<AutoOpen>]
+module MappingBuilderExtensions =
+
+    type MappingBuilder with
+
+        /// `jsonata "/fullName" "person.first & ' ' & person.last"`: set `/fullName` to the result of the
+        /// expression. `$` is the inputs as one object keyed by input name, `$doc` is the output so far. It
+        /// also registers the `jsonata` function, so the mapping runs as it stands. Writes the same rule as
+        /// `Rule.Compute` over `[ Literal expr; Inputs; Doc [] ]`.
+        [<CustomOperation("jsonata")>]
+        member _.Jsonata(s: MappingState, dest: string, expr: string) : MappingState =
+            let s = { s with Functions = Map.add "jsonata" Jsonata.jsonata s.Functions }
+            match Selector.parse dest with
+            | Ok d ->
+                let rule = Rule.Compute { Fn = "jsonata"; Args = [ Arg.Literal(Str expr); Arg.Inputs; Arg.Doc [] ]; Dest = d }
+                { s with Rules = s.Rules @ [ rule ] }
+            | Error e -> { s with Errors = s.Errors @ [ e ] }

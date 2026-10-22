@@ -66,6 +66,9 @@ and [<RequireQualifiedAccess>] Arg =
     | Doc of SelectorPath
     /// A fixed value.
     | Literal of Node
+    /// Every input bound at this point as one object keyed by input name (inside a `Collect` entry, just the
+    /// file being read). For a function that reaches into several inputs itself, such as a `jsonata` expression.
+    | Inputs
 
 /// `Fn` names an entry of `Mapping.Functions` (the built-ins are in `Functions.builtins`).
 and ComputeSpec =
@@ -254,7 +257,9 @@ module Mapping =
         | Obj [ "from", v ] -> decSource (path @ [ Key "from" ]) v |> Result.map (fun (name, p) -> Arg.Input(name, p))
         | Obj [ "doc", v ] -> decSelector (path @ [ Key "doc" ]) v |> Result.map Arg.Doc
         | Obj [ "value", v ] -> Ok(Arg.Literal v)
-        | _ -> Error [ fileError path "An argument is an object with exactly one of 'from', 'doc' or 'value'" ]
+        | Obj [ "inputs", Bool true ] -> Ok Arg.Inputs
+        | Obj [ "inputs", _ ] -> Error [ fileError (path @ [ Key "inputs" ]) "'inputs' must be true" ]
+        | _ -> Error [ fileError path "An argument is an object with exactly one of 'from', 'doc', 'value' or 'inputs'" ]
 
     let private ruleNames =
         "layer, listsBy, conflict, nullDeletes, copy, rename, defaultTo, set, drop, collect, compute"
@@ -376,6 +381,7 @@ module Mapping =
         | Arg.Input(name, sp) -> encSource (path @ [ Key "from" ]) (name, sp) |> Result.map (fun s -> Obj [ "from", s ])
         | Arg.Doc sp -> encSelector (path @ [ Key "doc" ]) sp |> Result.map (fun s -> Obj [ "doc", s ])
         | Arg.Literal v -> Ok(Obj [ "value", v ])
+        | Arg.Inputs -> Ok(Obj [ "inputs", Bool true ])
 
     /// A function that exists only in the process that registered it. The built-ins and `jsonata` (which
     /// `Fergi.Jsonata` registers, and any runner can) are written by name; an unknown name is written too,

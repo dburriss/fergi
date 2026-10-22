@@ -103,8 +103,8 @@ rules:
   `rename`, `defaultTo`, `set`, `drop`, `collect` and `compute`.
 - **Arguments are tagged**, because a bare string cannot say whether it is a pointer or a literal. `from` is a
   pointer into a named input (`input:/path`, as `Arg.Input`), `doc` is a pointer into the document built so
-  far (`Arg.Doc`), and `value` is a fixed value (`Arg.Literal`), which YAML types natively: ints, bools and
-  nulls survive.
+  far (`Arg.Doc`), `value` is a fixed value (`Arg.Literal`), which YAML types natively: ints, bools and
+  nulls survive, and `inputs: true` is every input as one object keyed by name (`Arg.Inputs`).
 - **`version`** is required and must be `1`; another number is `mapping.version`. Files outlive the code that
   reads them. A top-level `$schema` key is accepted and ignored.
 - **Reading reports every problem it finds**, each with the `Path` of the place in the file (and, through
@@ -118,7 +118,10 @@ rules:
   read back as itself (a `Where` key containing `=`, a numeric object key that would read back as an index).
 - **Not in the file:** `Ensure` closure hooks, the code of any custom function, and `Files` (where the inputs live; its
   shape is not decided). A `Timestamp` literal is a string once it has been through JSON text.
-- **Not built yet:** the `jsonata` rule sugar (needs `Arg.Inputs`, `STATUS.md` item 9).
+- **`jsonata` sugar:** `open Fergi.Jsonata` adds a `jsonata "/dest" "expr"` operation to the `mapping` builder. It
+  writes a `compute` of `jsonata` over `[ value expr; inputs; doc "" ]` and registers the function (the builder's
+  `func` operation registers any other host function). In the expression `$` is the inputs object and `$doc` the
+  output so far.
 
 `ofNode (toNode m)` gives back the inputs and rules of `m`, and a mapping read from a file runs like the one it
 was written from (both are tested, through JSON and YAML text, on .NET, Fable JS and Fable Python).

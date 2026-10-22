@@ -57,6 +57,13 @@
           "required": ["value"],
           "additionalProperties": false,
           "properties": { "value": true }
+        },
+        {
+          "description": "Every input bound at this point, as one object keyed by input name.",
+          "type": "object",
+          "required": ["inputs"],
+          "additionalProperties": false,
+          "properties": { "inputs": { "const": true } }
         }
       ]
     },

@@ -172,3 +172,33 @@ let ``validate reports a bad expression and an unknown function`` () =
     // not registered: the name is unknown (Mapping.validate), the syntax is still checked
     let unregistered = Mapping.create [] [ rule "first &" ]
     Assert.Equal(2, List.length (Jsonata.validate unregistered))
+
+[<Fact>]
+let ``jsonata builder operation sees all inputs and the output so far`` () =
+    let m =
+        mapping {
+            inputs [ "a"; "b" ]
+            layer [ "a" ]
+            jsonata "/sum" "a.x + b.y"
+            jsonata "/seen" "$doc.sum & '!'"
+        }
+    let m = match m with Ok m -> m | Error e -> failwithf "%A" e
+    let f = { Inputs = Map.ofList [ "a", "a"; "b", "b" ]; InputLists = Map.empty; Output = "o" }
+    let docs = Map.ofList [ "a", Obj [ "x", Int 2L ]; "b", Obj [ "y", Int 3L ]; "o", Obj [] ]
+    match Fergi.run m f (Loader.ofNodes docs) with
+    | Ok r ->
+        Assert.Equal(Obj [ "x", Int 2L; "sum", Int 5L; "seen", Str "5!" ], Map.find "o" r)
+    | Error e -> failwithf "%A" e
+
+[<Fact>]
+let ``jsonata builder operation reports a bad destination`` () =
+    match mapping { inputs [ "a" ]; jsonata "not a pointer" "1" } with
+    | Error [ _ ] -> ()
+    | other -> failwithf "unexpected %A" other
+
+[<Fact>]
+let ``Arg.Inputs round trips through the file form`` () =
+    let m = Mapping.create [ "a" ] [ Rule.Compute { Fn = "jsonata"; Args = [ Arg.Literal(Str "a"); Arg.Inputs ]; Dest = sel "/x" } ]
+    match Mapping.toNode m |> Result.bind (Mapping.ofNode) with
+    | Ok m2 -> Assert.True((m.Rules = m2.Rules))
+    | Error e -> failwithf "%A" e

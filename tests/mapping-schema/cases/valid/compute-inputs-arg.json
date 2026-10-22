@@ -1,0 +1,1 @@
+{ "version": 1, "inputs": ["a"], "rules": [ { "compute": { "to": "/x", "fn": "f", "args": [ { "inputs": true } ] } } ] }

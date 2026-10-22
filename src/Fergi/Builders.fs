@@ -80,6 +80,8 @@ module Builders =
     type ArgSpec =
         | Ptr of string
         | Lit of Node
+        /// All inputs as one object keyed by input name (`Arg.Inputs`).
+        | AllInputs
 
     let private ruleCompute (declared: string list option) (fn: string) (args: ArgSpec list) (dest: string) : Result<Rule, Error> =
         let names (src: string) =
@@ -91,6 +93,7 @@ module Builders =
         let arg (a: ArgSpec) : Result<Arg, Error> =
             match a with
             | Lit v -> Ok(Arg.Literal v)
+            | AllInputs -> Ok Arg.Inputs
             | Ptr src ->
                 SourcePath.parse (names src) src
                 |> Result.map (fun sp ->
@@ -147,6 +150,7 @@ module Builders =
           InputLists: string list
           Rules: Rule list
           Ensure: (string * (Node -> Result<unit, Error list>)) list
+          Functions: Map<string, Function>
           Errors: Error list }
 
     /// `mapping { inputs [...]; layer [...]; copy ...; each ... }` builds a `Mapping`. Pointer strings are
@@ -154,7 +158,7 @@ module Builders =
     /// `Error` with all of them (no exception). The same mapping can be written as `Mapping.create` over
     /// a `Rule list`.
     type MappingBuilder() =
-        let empty : MappingState = { Inputs = []; InputLists = []; Rules = []; Ensure = []; Errors = [] }
+        let empty : MappingState = { Inputs = []; InputLists = []; Rules = []; Ensure = []; Functions = Functions.builtins; Errors = [] }
         let add (s: MappingState) (r: Result<Rule, Error>) : MappingState =
             match r with
             | Ok rule -> { s with Rules = s.Rules @ [ rule ] }
@@ -163,7 +167,7 @@ module Builders =
         member _.Zero() : MappingState = empty
         member _.Run(s: MappingState) : Result<Mapping, Error list> =
             if List.isEmpty s.Errors then
-                Ok { Mapping.Inputs = s.Inputs; InputLists = s.InputLists; Rules = s.Rules; Ensure = s.Ensure; Functions = Functions.builtins }
+                Ok { Mapping.Inputs = s.Inputs; InputLists = s.InputLists; Rules = s.Rules; Ensure = s.Ensure; Functions = s.Functions }
             else Error s.Errors
 
         /// Names of the single-file inputs.
@@ -197,6 +201,9 @@ module Builders =
         [<CustomOperation("compute")>]
         member _.Compute(s: MappingState, dest: string, fn: string, args: ArgSpec list) =
             add s (ruleCompute (Some s.Inputs) fn args dest)
+        /// Register a function by name for `compute` (the builder's mapping starts with the built-ins).
+        [<CustomOperation("func")>]
+        member _.Func(s: MappingState, name: string, fn: Function) = { s with Functions = Map.add name fn s.Functions }
         [<CustomOperation("ensure")>]
         member _.Ensure(s: MappingState, name: string, check: Node -> Result<unit, Error list>) =
             { s with Ensure = s.Ensure @ [ name, check ] }
