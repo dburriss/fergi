@@ -7,8 +7,15 @@
     <Description>The fergi command line: validate and run mapping files. .NET only (it references Fergi.Jsonata).</Description>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="Cli.fs" />
+    <Compile Include="Args.fs" />
+    <Compile Include="Io.fs" />
+    <Compile Include="Shared.fs" />
+    <Compile Include="ValidateCli.fs" />
+    <Compile Include="RunCli.fs" />
     <Compile Include="Program.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Argu" Version="6.*" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Fergi/Fergi.fsproj" />

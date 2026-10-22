@@ -25,7 +25,7 @@ Last verified: 2026-10-22 (not re-run on Fable after the CLI; the CLI is outside
 | `src/JsonValue` | Standalone JSON library (placeholder namespace `Fergi.Json`), positions built in, no dependencies |
 | `src/Fnode.Json` | JSON adapter over `JsonValue` |
 | `src/Fergi` | Selectors with `Where`, `Doc`, `Patch` (atomic apply, diff), `Policy`, `Doc.merge`/`layers` with provenance, `Mapping`/`Files` data form, `run`/`plan`/`runFiles`, aggregation (`inputList`, `Rule.Collect`), the file form (`Mapping.toNode`/`ofNode`/`ofParsed`, schema in `docs/mapping.schema.json`), computed values (`Rule.Compute`, named functions from `Mapping.Functions`, built-ins in `Functions.builtins`), and the CEs `ops`, `docs`, `files`, `entry`, `mapping` |
-| `src/Fergi.Cli` | The command line (`Fergi.Cli`, .NET only): `validate <mapping>` and `run <mapping> -i [name=]file -l name=file/glob -o file [--dry-run]`, JSONata registered. See `DECISIONS.md` |
+| `src/Fergi.Cli` | The command line (`Fergi.Cli`, .NET only, Argu, structured like eru's CLI): `validate <mapping>` and `run <mapping> -i [name=]file -l name=file/glob -o file [--dry-run]`, JSONata registered. See `DECISIONS.md` |
 | `src/Fergi.Jsonata` | **Spike, .NET only.** Registers a `jsonata` function (`Jsonata.Net.Native`) for `Rule.Compute`. There are no Fable (JS or Python) bindings yet. See `docs/jsonata.md` |
 | `tests/*` | Unit and property tests per project, `Fnode.Conformance` (shared YAML+JSON cases), `Fnode.Fable` (Fable harness), `Fergi.Tests` (includes the end-to-end billing case under `tests/Fergi.Tests/data/`) |
 | `tests/jsonata-conformance` | 90 JSONata expressions run through the .NET, JS and Python libraries with recorded expectations (73 portable, 17 divergent). `scripts/jsonata-conformance.sh` runs it |

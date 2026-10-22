@@ -45,7 +45,7 @@ let private cli (args: string list) : Result' =
     let out = ResizeArray<string>()
     let err = ResizeArray<string>()
     let io = { Io.real with Out = out.Add; Err = err.Add }
-    let code = Cli.run args io
+    let code = Program.run (Array.ofList args) io
     { Code = code; Out = List.ofSeq out; Err = List.ofSeq err }
 
 let private errText (r: Result') = String.Join("\n", r.Err)
@@ -100,13 +100,13 @@ let private parseFile (path: string) : Node =
 
 [<Fact>]
 let ``a bare input file takes its name from the file name`` () =
-    Assert.Equal("org", Cli.inputName { Name = None; File = "defaults/org.yaml" })
-    Assert.Equal("x", Cli.inputName { Name = Some "x"; File = "defaults/org.yaml" })
+    Assert.Equal("org", RunCli.inputName { Name = None; File = "defaults/org.yaml" })
+    Assert.Equal("x", RunCli.inputName { Name = Some "x"; File = "defaults/org.yaml" })
 
 [<Fact>]
 let ``the name splits on the first equals sign`` () =
-    match Cli.parse [ "run"; "m.yaml"; "-i"; "a=dir/b=c.yaml"; "-o"; "o.yaml" ] with
-    | Ok(Run a) -> Assert.Equal<InputArg list>([ { Name = Some "a"; File = "dir/b=c.yaml" } ], a.Inputs)
+    match RunCli.parseInput "a=dir/b=c.yaml" with
+    | Ok a -> Assert.Equal(({ Name = Some "a"; File = "dir/b=c.yaml" }: RunCli.InputArg), a)
     | other -> failwithf "%A" other
 
 [<Fact>]
@@ -128,7 +128,7 @@ let ``usage errors exit 2`` () =
 let ``help exits 0`` () =
     let r = cli [ "--help" ]
     Assert.Equal(0, r.Code)
-    Assert.Contains("fergi run", outText r)
+    Assert.Contains("run", outText r)
 
 // -- validate --
 

@@ -258,7 +258,7 @@ reasoning are in `ARCHITECTURE.md` and `DECISIONS.md`.
 
 ## Command line
 
-`src/Fergi.Cli` runs a mapping file. It reads YAML or JSON (by extension), registers the built-ins and
+`src/Fergi.Cli` (Argu) runs a mapping file; `--help` works on every command. It reads YAML or JSON (by extension), registers the built-ins and
 `jsonata`, and writes one output file.
 
 ```
@@ -270,7 +270,7 @@ fergi run mapping.yaml -i org=defaults/org.yaml -o out.yaml --dry-run
 
 - `-i [name=]file` is a single input. Without `name=` the name is the file name without its extension
   (`defaults/org.yaml` binds `org`); two inputs with the same derived name need explicit names.
-- `-l name=file` adds a file to a list input (the mapping's `inputLists`). Repeat it; the order is kept. A value
+- `-l name=file` (`--input-list`) adds a file to a list input (the mapping's `inputLists`). Repeat it; the order is kept. A value
   with `*` or `?` is expanded by the CLI and sorted by path; no match is an error.
 - `-o file` is the single output, written only when the whole run succeeds. The output may not be an input or
   the mapping. `--dry-run` prints the changes against the current output and writes nothing.

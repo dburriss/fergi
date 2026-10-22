@@ -38,15 +38,20 @@ Rejected:
   mapping's `inputs` order silently rebinds files when the mapping is reordered.
 - **Binding by the mapping's declaration order**: the same silent rebinding.
 - **A comma-separated `-l`**: breaks paths with commas; repeating the flag does not.
-- **A parsing library (System.CommandLine)**: two commands and five flags do not need a dependency.
+- **Hand-rolled argument parsing** (what the first cut had): fine for two commands, but it did not scale to
+  `--help` per command or more commands, and the other tools in this family (eru) use Argu.
 
 Costs: more typing than the positional form (the derived name keeps the common case short); glob expansion
-and the flag grammar are ours to maintain; the CLI is .NET only because of JSONata (it stays out of the Fable
+and the `name=file` rules are ours to maintain (Argu parses the flags, `RunCli.run` checks the values, exit 2);
+the Argu dependency, and `--help` / `-h` are mapped to Argu's `help` word because subcommands use `CliPrefix.None`; the CLI is .NET only because of JSONata (it stays out of the Fable
 suite like `Fergi.Jsonata`); the executable is `Fergi.Cli` because the `fergi` assembly name clashes with the
 `Fergi` project name.
 
 Revisit if: a multi-output mapping is added (`-o` would need a name), a file form for `Files` lands (item 17,
 the flags may then read from it), or the CLI is packaged as a tool (then name the command `fergi`).
+
+Structure follows eru's CLI: `Args.fs` (Argu unions), one `<Name>Cli.fs` per command with an active pattern
+`(|<Name>Cmd|_|)` and `run io cmd`, and a thin `Program.fs` that dispatches and maps Argu errors to exit 2.
 
 See: `src/Fergi.Cli/`, `tests/Fergi.Cli.Tests/`.
 
