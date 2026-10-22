@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>Fergi.Cli</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <Description>The fergi command line: validate and run mapping files. .NET only (it references Fergi.Jsonata).</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Cli.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Fergi/Fergi.fsproj" />
+    <ProjectReference Include="../Fergi.Jsonata/Fergi.Jsonata.fsproj" />
+    <ProjectReference Include="../Fnode.Yaml/Fnode.Yaml.fsproj" />
+    <ProjectReference Include="../Fnode.Json/Fnode.Json.fsproj" />
+  </ItemGroup>
+</Project>

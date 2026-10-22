@@ -19,6 +19,37 @@ Revisit if: the signals that should reopen it.
 See: files, docs or commits.
 ```
 
+## The CLI names its inputs with flags; the last argument is not the output
+Date: 2026-10-22. Status: Accepted.
+
+Decision: `fergi run <mapping> -i [name=]<file> ... -l name=<file or glob> ... -o <file> [--dry-run]` and
+`fergi validate <mapping>`. `-i` binds a single input (`name=file`, or the file name without its extension when
+there is no `=`), `-l` appends to a list input (repeat it; the value may be a glob, expanded sorted), `-o` is
+exactly one output. JSONata is registered. Output is written through a temp file and a rename, and only after
+the whole run succeeded. An output that is also an input or the mapping file is refused.
+
+Why: inputs are named in the mapping and rules read them as `name:/path`, so the CLI has to bind a file to a
+name; `Files` has one `Output`. Flags put the destination in the command line explicitly and give input lists
+a delimiter.
+
+Rejected:
+- **`run mapping in... out` with the last argument as the output**: forgetting one input overwrites it (a glob
+  that matches the output does the same), input lists have no end marker, and positional binding by the
+  mapping's `inputs` order silently rebinds files when the mapping is reordered.
+- **Binding by the mapping's declaration order**: the same silent rebinding.
+- **A comma-separated `-l`**: breaks paths with commas; repeating the flag does not.
+- **A parsing library (System.CommandLine)**: two commands and five flags do not need a dependency.
+
+Costs: more typing than the positional form (the derived name keeps the common case short); glob expansion
+and the flag grammar are ours to maintain; the CLI is .NET only because of JSONata (it stays out of the Fable
+suite like `Fergi.Jsonata`); the executable is `Fergi.Cli` because the `fergi` assembly name clashes with the
+`Fergi` project name.
+
+Revisit if: a multi-output mapping is added (`-o` would need a name), a file form for `Files` lands (item 17,
+the flags may then read from it), or the CLI is packaged as a tool (then name the command `fergi`).
+
+See: `src/Fergi.Cli/`, `tests/Fergi.Cli.Tests/`.
+
 ## Ensure comes in flavours; the closure flavour is in-process only
 Date: 2026-10-16. Status: Accepted (closure and `jsonata` flavours built; `falid` is not).
 

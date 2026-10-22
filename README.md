@@ -239,7 +239,7 @@ You can also skip mappings and call the pieces yourself: parse with an adapter, 
 
 ## Mapping files
 
-A mapping can be written to and read from a file, so another program can generate it (for a CLI, or a
+A mapping can be written to and read from a file, so another program can generate it (for the CLI below, or a
 producer in another language).
 
 ```fsharp
@@ -253,8 +253,31 @@ let fromFile =
 ```
 
 Use `Mapping.ofNode` when you have a `Node` and no positions. The format is versioned (`version: 1`), one key
-per rule, with a JSON Schema in `docs/mapping.schema.json`. `Files` has no file form yet. Details and
+per rule, with a JSON Schema in `docs/mapping.schema.json`. `Files` has no file form yet (the CLI takes it from flags). Details and
 reasoning are in `ARCHITECTURE.md` and `DECISIONS.md`.
+
+## Command line
+
+`src/Fergi.Cli` runs a mapping file. It reads YAML or JSON (by extension), registers the built-ins and
+`jsonata`, and writes one output file.
+
+```
+fergi validate mapping.yaml
+fergi run mapping.yaml -i defaults/org.yaml -i team=teams/energy.yaml -i service=svc/billing.yaml -o deploy/billing.yaml
+fergi run catalog.yaml -l repos="repos/*/service.yaml" -o catalog/services.yaml
+fergi run mapping.yaml -i org=defaults/org.yaml -o out.yaml --dry-run
+```
+
+- `-i [name=]file` is a single input. Without `name=` the name is the file name without its extension
+  (`defaults/org.yaml` binds `org`); two inputs with the same derived name need explicit names.
+- `-l name=file` adds a file to a list input (the mapping's `inputLists`). Repeat it; the order is kept. A value
+  with `*` or `?` is expanded by the CLI and sorted by path; no match is an error.
+- `-o file` is the single output, written only when the whole run succeeds. The output may not be an input or
+  the mapping. `--dry-run` prints the changes against the current output and writes nothing.
+- Errors go to stderr as `file:line:col: code: message`. Exit codes: 0 ok, 1 validation or run errors, 2 usage.
+
+Build and run it with `dotnet run --project src/Fergi.Cli -c Release -- run ...` (the executable is `Fergi.Cli`).
+The `fergi` command name needs the tool packaging that comes with publishing.
 
 ## JSONata (optional, .NET only)
 

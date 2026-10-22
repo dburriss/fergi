@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Fergi.Cli/Fergi.Cli.fsproj" />
     <Project Path="src/Fergi.Jsonata/Fergi.Jsonata.fsproj" />
     <Project Path="src/Fergi/Fergi.fsproj" />
     <Project Path="src/Fnode.Json/Fnode.Json.fsproj" />
@@ -8,6 +9,7 @@
     <Project Path="src/JsonValue/JsonValue.fsproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Fergi.Cli.Tests/Fergi.Cli.Tests.fsproj" />
     <Project Path="tests/Fergi.Jsonata.Tests/Fergi.Jsonata.Tests.fsproj" />
     <Project Path="tests/Fergi.Tests/Fergi.Tests.fsproj" />
     <Project Path="tests/Fnode.Conformance/Fnode.Conformance.fsproj" />
