@@ -84,7 +84,8 @@ module Jsonata =
     /// `Mapping.validate` plus the syntax of every `jsonata` rule whose expression is a literal string (also
     /// inside `Collect` entries). A bad expression is a `compute.failed` error carrying the library's message
     /// (which names the position) and the context `function`, `rule` (index) and `expression`. An expression
-    /// that is not a literal is not checked.
+    /// that is not a literal is not checked. The expressions of `jsonata` ensure entries are checked too (the
+    /// context is `ensure` (the entry name) instead of `rule`).
     let validate (m: Mapping) : Error list =
         let syntax (expr: string) : string option =
             try
@@ -107,7 +108,20 @@ module Jsonata =
                 | Rule.Collect c -> check (at + ".") c.Entry
                 | _ -> [])
             |> List.concat
-        Mapping.validate m @ check "" m.Rules
+        let ensures =
+            m.Ensure
+            |> List.collect (fun (name, c) ->
+                match c with
+                | EnsureCheck.Jsonata expr ->
+                    match syntax expr with
+                    | Some msg ->
+                        [ Error.create ErrorCodes.computeFailed ("Invalid JSONata expression: " + msg) []
+                          |> Error.withContext "function" "jsonata"
+                          |> Error.withContext "ensure" name
+                          |> Error.withContext "expression" expr ]
+                    | None -> []
+                | EnsureCheck.Fn _ -> [])
+        Mapping.validate m @ check "" m.Rules @ ensures
 
 /// The `jsonata` operation of the `mapping` builder. Open `Fergi.Jsonata` to get it.
 [<AutoOpen>]
@@ -127,3 +141,13 @@ module MappingBuilderExtensions =
                 let rule = Rule.Compute { Fn = "jsonata"; Args = [ Arg.Literal(Str expr); Arg.Inputs; Arg.Doc [] ]; Dest = d }
                 { s with Rules = s.Rules @ [ rule ] }
             | Error e -> { s with Errors = s.Errors @ [ e ] }
+
+        /// `ensureJsonata "has owner" "$exists(owner)"`: fail the run (`ensure.failed`) unless the predicate,
+        /// evaluated over the final output document (`$`), returns true. It must return a boolean: an
+        /// undefined result (`owner = 'x'` with no `owner`) fails the check. It also registers the `jsonata`
+        /// function. Writes the same entry as the file form's `ensure`.
+        [<CustomOperation("ensureJsonata")>]
+        member _.EnsureJsonata(s: MappingState, name: string, expr: string) : MappingState =
+            { s with
+                Functions = Map.add "jsonata" Jsonata.jsonata s.Functions
+                Ensure = s.Ensure @ [ name, EnsureCheck.Jsonata expr ] }

@@ -86,13 +86,19 @@ and CollectSpec =
       Entry: Rule list
       SortBy: SelectorPath option }
 
+/// A check on the final result. `Fn` is host code (never in a file). `Jsonata` is a predicate over the
+/// output document, run through the registered `jsonata` function; it must return a boolean.
+type EnsureCheck =
+    | Fn of (Node -> Result<unit, Error list>)
+    | Jsonata of string
+
 /// `Ensure` is a field rather than a `Rule` so `Rule` stays plain data.
 /// `Inputs` name single files, `InputLists` name inputs that stand for a list of files (see `Rule.Collect`).
 type Mapping =
     { Inputs: string list
       InputLists: string list
       Rules: Rule list
-      Ensure: (string * (Node -> Result<unit, Error list>)) list
+      Ensure: (string * EnsureCheck) list
       /// The functions `Rule.Compute` may call by name. Kept beside the rules, not in them, so `Rule` stays
       /// plain data; a mapping read from a file gets the registry it runs with.
       Functions: Map<string, Function> }
@@ -148,7 +154,7 @@ module Mapping =
 
     /// Add a named `Ensure` hook (run on the final result).
     let ensure (name: string) (check: Node -> Result<unit, Error list>) (m: Mapping) : Mapping =
-        { m with Ensure = m.Ensure @ [ name, check ] }
+        { m with Ensure = m.Ensure @ [ name, Fn check ] }
 
     /// Register (or replace) a function that `Rule.Compute` can call by name.
     let withFunction (name: string) (fn: Function) (m: Mapping) : Mapping =
@@ -261,6 +267,11 @@ module Mapping =
         | Obj [ "inputs", _ ] -> Error [ fileError (path @ [ Key "inputs" ]) "'inputs' must be true" ]
         | _ -> Error [ fileError path "An argument is an object with exactly one of 'from', 'doc', 'value' or 'inputs'" ]
 
+    let private decEnsureEntry (path: Path) (n: Node) : Result<string * EnsureCheck, Error list> =
+        decObject path [ "name"; "jsonata" ] n
+        |> Result.bind (fun kvs ->
+            map2 (fun name expr -> name, Jsonata expr) (req path kvs "name" decStr) (req path kvs "jsonata" decStr))
+
     let private ruleNames =
         "layer, listsBy, conflict, nullDeletes, copy, rename, defaultTo, set, drop, collect, compute"
 
@@ -329,20 +340,24 @@ module Mapping =
 
     /// Read a mapping from its file form. Every problem found is reported, each with the `Path` of the
     /// offending place in the file (use `ofParsed` to turn that into a line and column). The result has
-    /// the built-in functions only and no closure `Ensure` hooks (those are code, so never in a file); add
+    /// the built-in functions only and no closure `Ensure` hooks (those are code, so never in a file; `jsonata`
+    /// ensure entries are read); add
     /// host functions with `withFunction` and closure hooks with `ensure`. Whether
     /// input and function names are declared is checked by `Fergi.run`, not here.
     let ofNode (node: Node) : Result<Mapping, Error list> =
-        match decObject [] [ "$schema"; "version"; "inputs"; "inputLists"; "rules" ] node with
+        match decObject [] [ "$schema"; "version"; "inputs"; "inputLists"; "rules"; "ensure" ] node with
         | Error e -> Error e
         | Ok kvs ->
             let version = req [] kvs "version" decVersion
             let inputs = req [] kvs "inputs" (decList decStr)
             let lists = opt [] kvs "inputLists" (decList decStr)
             let rules = req [] kvs "rules" (decList decRule)
-            match version, inputs, lists, rules with
-            | Ok _, Ok i, Ok l, Ok r -> Ok(create i r |> withInputLists (Option.defaultValue [] l))
-            | _ -> Error(errorsOf version @ errorsOf inputs @ errorsOf lists @ errorsOf rules)
+            let ensures = opt [] kvs "ensure" (decList decEnsureEntry)
+            match version, inputs, lists, rules, ensures with
+            | Ok _, Ok i, Ok l, Ok r, Ok e ->
+                let m = create i r |> withInputLists (Option.defaultValue [] l)
+                Ok { m with Ensure = Option.defaultValue [] e }
+            | _ -> Error(errorsOf version @ errorsOf inputs @ errorsOf lists @ errorsOf rules @ errorsOf ensures)
 
     /// `ofNode` over a parsed file: each error also gets the `Location` of its path, or of the nearest
     /// enclosing place the parser recorded (an unknown key has no span of its own).
@@ -463,18 +478,28 @@ module Mapping =
 
     /// Write a mapping in its file form (`ofNode (toNode m)` gives `m` back, apart from `Ensure` and the
     /// function registry, which are not part of it). Fails, listing every offender, when the mapping holds
-    /// something a file cannot say: an `Ensure` closure hook (code that exists only in the host program; the
-    /// file flavours, a `jsonata` or `falid` ensure, do not exist yet), a function registered with
+    /// something a file cannot say: an `Ensure` closure hook (code that exists only in the host program; a
+    /// `jsonata` ensure is written), a function registered with
     /// `withFunction` (it runs only where it was
     /// registered), or a selector or pointer that does not read back as itself. Print the result with an
     /// adapter (JSON by default for generated files).
     let toNode (m: Mapping) : Result<Node, Error list> =
         let hooks =
             m.Ensure
-            |> List.map (fun (name, _) ->
-                cannot [] ("Ensure hook '" + name + "' is a closure, which exists only in the host program, so it cannot be written to a file. Check the result in the program that runs the mapping, or use a jsonata or falid ensure once one exists")
-                |> List.map (Error.withContext "ensure" name))
+            |> List.choose (fun (name, check) ->
+                match check with
+                | Fn _ ->
+                    cannot [] ("Ensure hook '" + name + "' is a closure, which exists only in the host program, so it cannot be written to a file. Check the result in the program that runs the mapping, or use a jsonata ensure")
+                    |> List.map (Error.withContext "ensure" name)
+                    |> Some
+                | Jsonata _ -> None)
             |> List.concat
+        let ensures =
+            m.Ensure
+            |> List.choose (fun (name, check) ->
+                match check with
+                | Jsonata expr -> Some(Obj [ "name", Str name; "jsonata", Str expr ])
+                | Fn _ -> None)
         let rules = m.Rules |> List.mapi (fun i r -> encRule m [ Key "rules"; Index i ] r) |> collect
         match hooks, rules with
         | [], Ok rs ->
@@ -483,6 +508,7 @@ module Mapping =
                     [ "version", Int formatVersion; "inputs", Arr(List.map Str m.Inputs) ]
                     @ (if List.isEmpty m.InputLists then [] else [ "inputLists", Arr(List.map Str m.InputLists) ])
                     @ [ "rules", Arr rs ]
+                    @ (if List.isEmpty ensures then [] else [ "ensure", Arr ensures ])
                 )
             )
         | _ -> Error(hooks @ errorsOf rules)
@@ -562,4 +588,16 @@ module Mapping =
             |> List.map (fun n ->
                 err ErrorCodes.mappingFunctionUnknown ("Compute calls unknown function '" + n + "'")
                 |> Error.withContext "function" n)
-        clash @ unknownRules @ collects @ multi @ unknownFns
+        let ensureFns =
+            if not (Map.containsKey "jsonata" m.Functions) then
+                m.Ensure
+                |> List.choose (fun (name, check) ->
+                    match check with
+                    | Jsonata _ ->
+                        err ErrorCodes.mappingFunctionUnknown ("Ensure '" + name + "' needs function 'jsonata', which is not registered")
+                        |> Error.withContext "function" "jsonata"
+                        |> Error.withContext "ensure" name
+                        |> Some
+                    | Fn _ -> None)
+            else []
+        clash @ unknownRules @ collects @ multi @ unknownFns @ ensureFns

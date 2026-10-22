@@ -202,3 +202,29 @@ let ``Arg.Inputs round trips through the file form`` () =
     match Mapping.toNode m |> Result.bind (Mapping.ofNode) with
     | Ok m2 -> Assert.True((m.Rules = m2.Rules))
     | Error e -> failwithf "%A" e
+
+[<Fact>]
+let ``ensureJsonata passes and fails on a real predicate`` () =
+    let build expr =
+        match mapping { inputs [ "a" ]; layer [ "a" ]; ensureJsonata "has owner" expr } with
+        | Ok m -> m
+        | Error e -> failwithf "%A" e
+    let f = { Inputs = Map.ofList [ "a", "a" ]; InputLists = Map.empty; Output = "o" }
+    let docs = Map.ofList [ "a", Obj [ "owner", Str "x" ]; "o", Obj [] ]
+    Assert.True(Result.isOk (Fergi.run (build "owner = 'x'") f (Loader.ofNodes docs)))
+    match Fergi.run (build "owner = 'y'") f (Loader.ofNodes docs) with
+    | Error [ e ] -> Assert.Equal(ErrorCodes.ensureFailed, e.Code)
+    | other -> failwithf "unexpected %A" other
+    // no value: undefined fails the check
+    match Fergi.run (build "missing = 'y'") f (Loader.ofNodes docs) with
+    | Error [ e ] -> Assert.Equal(ErrorCodes.ensureFailed, e.Code)
+    | other -> failwithf "unexpected %A" other
+
+[<Fact>]
+let ``Jsonata.validate catches a syntax error in an ensure expression`` () =
+    let m = match mapping { inputs [ "a" ]; ensureJsonata "bad" "owner =" } with Ok m -> m | Error e -> failwithf "%A" e
+    match Jsonata.validate m with
+    | [ e ] ->
+        Assert.Equal(ErrorCodes.computeFailed, e.Code)
+        Assert.Contains<(string * string)>(("ensure", "bad"), e.Context)
+    | other -> failwithf "unexpected %A" other

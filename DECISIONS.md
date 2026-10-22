@@ -20,7 +20,7 @@ See: files, docs or commits.
 ```
 
 ## Ensure comes in flavours; the closure flavour is in-process only
-Date: 2026-10-16. Status: Accepted (closure flavour); the `jsonata` and `falid` flavours are not built.
+Date: 2026-10-16. Status: Accepted (closure and `jsonata` flavours built; `falid` is not).
 
 Decision: `Ensure` has three flavours. `fn` (a closure, `Node -> Result<unit, Error list>`) is for people who
 want their own language instead of JSONata or the built-ins; it exists only in the program that runs the
@@ -36,6 +36,13 @@ Rejected: registering closures under names so a file can reference them (a file 
 program never registered, and `toNode` could no longer refuse a hook it cannot write); replacing closures with
 a name registry (breaks the `ensure` builder API for no gain); one declarative check rule for everything (too
 small for what Falid does).
+
+`jsonata` (built 2026-10-22): `Ensure` is a list of `(name, EnsureCheck)` where `EnsureCheck = Fn | Jsonata`, so
+`falid` is one more case. A file carries `ensure: [ { "name", "jsonata" } ]` (additive, `version` stays 1). `$` is
+the final output document only (no inputs), as for closure hooks. The predicate must return a boolean: false,
+a non-boolean and no value (undefined, e.g. `owner = 'x'` with no `owner`) all fail with `ensure.failed`.
+Core evaluates it through the registered `jsonata` function, so it stays Fable-safe; an entry with no such
+function registered is `mapping.functionUnknown` in `validate`, and `Jsonata.validate` checks its syntax.
 
 Costs: three mechanisms to document and validate. A file never carries closure checks, so a mapping that relies
 on one runs checked only where the host supplies it.

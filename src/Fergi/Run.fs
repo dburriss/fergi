@@ -329,8 +329,21 @@ module Fergi =
     let private runEnsure (m: Mapping) (result: Node) : Error list =
         m.Ensure
         |> List.collect (fun (name, check) ->
-            // a closure hook is host code; a throw must not take the run down (as with `compute`)
-            let checked' = try check result with e -> Error [ Error.create ErrorCodes.ensureFailed ("Ensure '" + name + "' threw: " + e.Message) [] ]
+            let checked' =
+                match check with
+                | Fn f ->
+                    // a closure hook is host code; a throw must not take the run down (as with `compute`)
+                    try f result with e -> Error [ Error.create ErrorCodes.ensureFailed ("Ensure '" + name + "' threw: " + e.Message) [] ]
+                | Jsonata expr ->
+                    let failed msg = Error [ Error.create ErrorCodes.ensureFailed ("Ensure '" + name + "' " + msg) [] ]
+                    match Map.tryFind "jsonata" m.Functions with
+                    | None -> failed "needs function 'jsonata', which is not registered"
+                    | Some f ->
+                        match (try f [ Str expr; result ] with e -> Error e.Message) with
+                        | Ok(Bool true) -> Ok()
+                        | Ok(Bool false) -> Error []
+                        | Ok _ -> failed "must return a boolean"
+                        | Error msg -> failed ("could not be evaluated: " + msg)
             match checked' with
             | Ok() -> []
             | Error [] -> [ err ErrorCodes.ensureFailed ("Ensure '" + name + "' failed") |> Error.withContext "ensure" name ]

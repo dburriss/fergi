@@ -107,7 +107,7 @@ let ``an Ensure hook is reported by name`` () =
     Assert.Equal(2, es.Length)
     Assert.All(es, fun e -> Assert.Equal(ErrorCodes.mappingNotSerialisable, e.Code))
     Assert.Equal<(string * string) list list>([ [ "ensure", "has-name" ]; [ "ensure", "other" ] ], es |> List.map (fun e -> e.Context))
-    Assert.Contains("jsonata or falid ensure", es.Head.Message)
+    Assert.Contains("jsonata ensure", es.Head.Message)
 
 [<Fact>]
 let ``a host function is reported with its name and the path of the rule`` () =
@@ -268,3 +268,36 @@ let ``a file naming an unknown function reads, and run reports it`` () =
     let files = { Files.Inputs = Map.ofList [ "a", "a.json" ]; InputLists = Map.empty; Output = "o.json" }
     let es = Fergi.run m files (Loader.ofNodes (Map.ofList [ "a.json", Obj [] ])) |> errorsOf
     Assert.Equal(ErrorCodes.mappingFunctionUnknown, es.Head.Code)
+
+// ---- the jsonata ensure entry ----
+
+[<Fact>]
+let ``a jsonata ensure entry round trips through the file form`` () =
+    let m = { Mapping.create [ "a" ] [] with Ensure = [ "has owner", EnsureCheck.Jsonata "$exists(owner)" ] }
+    match Mapping.toNode m |> Result.bind Mapping.ofNode with
+    | Ok m2 -> Assert.Equal<(string * string) list>([ "has owner", "$exists(owner)" ], m2.Ensure |> List.map (fun (n, c) -> n, (match c with EnsureCheck.Jsonata e -> e | EnsureCheck.Fn _ -> "<fn>")))
+    | Error e -> failwithf "%A" e
+
+[<Fact>]
+let ``a mapping without ensure entries writes no ensure field`` () =
+    match Mapping.toNode (Mapping.create [ "a" ] []) with
+    | Ok(Obj kvs) -> Assert.False(List.exists (fun (k, _) -> k = "ensure") kvs)
+    | other -> failwithf "unexpected %A" other
+
+[<Fact>]
+let ``a closure hook beside a jsonata entry is still refused, by name`` () =
+    let m =
+        { Mapping.create [ "a" ] [] with Ensure = [ "p", EnsureCheck.Jsonata "true" ] }
+        |> Mapping.ensure "code" (fun _ -> Ok())
+    let es = m |> Mapping.toNode |> errorsOf
+    Assert.Equal<(string * string) list list>([ [ "ensure", "code" ] ], es |> List.map (fun e -> e.Context))
+
+[<Fact>]
+let ``bad ensure shapes are reported with a path`` () =
+    let read (n: Node) = Mapping.ofNode (Obj [ "version", Int 1L; "inputs", Arr []; "rules", Arr []; "ensure", n ])
+    let paths n = read n |> errorsOf |> List.map (fun e -> Path.print e.Path)
+    Assert.Equal<string list>([ "/ensure/0" ], paths (Arr [ Obj [ "jsonata", Str "true" ] ]))
+    Assert.Equal<string list>([ "/ensure/0" ], paths (Arr [ Obj [ "name", Str "x" ] ]))
+    Assert.Equal<string list>([ "/ensure/0/jsonata" ], paths (Arr [ Obj [ "name", Str "x"; "jsonata", Int 1L ] ]))
+    Assert.Equal<string list>([ "/ensure/0/other" ], paths (Arr [ Obj [ "name", Str "x"; "jsonata", Str "true"; "other", Null ] ]))
+    Assert.Equal<string list>([ "/ensure" ], paths (Str "x"))

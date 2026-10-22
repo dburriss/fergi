@@ -589,3 +589,57 @@ let ``Mapping.validate reports names without Files or a loader`` () =
     let codes = Mapping.validate m |> List.map (fun e -> e.Code) |> List.sort
     Assert.Equal<string list>([ ErrorCodes.mappingFunctionUnknown; ErrorCodes.mappingInputUnknown ], codes)
     Assert.Empty(Mapping.validate (Mapping.create [ "a" ] [ Rule.Layer [ "a" ] ]))
+
+// ---- Ensure: jsonata flavour (a fake registered function stands in for the library) ----
+
+let private fakeJsonata (answer: Result<Node, string>) : Function = fun _ -> answer
+
+let private jsonataEnsure (answer: Result<Node, string>) =
+    { mk [ layerAll ] with Ensure = [ "check", EnsureCheck.Jsonata "x" ] }
+    |> Mapping.withFunction "jsonata" (fakeJsonata answer)
+
+let private runEnsureJsonata answer =
+    let load, _ = loader store
+    Fergi.run (jsonataEnsure answer) files load
+
+[<Fact>]
+let ``jsonata Ensure passes on true`` () =
+    Assert.True(Result.isOk (runEnsureJsonata (Ok(Bool true))))
+
+[<Fact>]
+let ``jsonata Ensure fails on false, naming the check`` () =
+    match runEnsureJsonata (Ok(Bool false)) with
+    | Error [ e ] ->
+        Assert.Equal(ErrorCodes.ensureFailed, e.Code)
+        Assert.Contains("check", e.Message)
+        Assert.Equal<(string * string) list>([ "ensure", "check" ], e.Context)
+    | other -> failwithf "unexpected %A" other
+
+[<Fact>]
+let ``jsonata Ensure fails on a non-boolean`` () =
+    match runEnsureJsonata (Ok(Str "yes")) with
+    | Error [ e ] ->
+        Assert.Equal(ErrorCodes.ensureFailed, e.Code)
+        Assert.Contains("boolean", e.Message)
+    | other -> failwithf "unexpected %A" other
+
+[<Fact>]
+let ``jsonata Ensure fails when the function errors or throws`` () =
+    for fn in [ fakeJsonata (Error "undefined"); (fun _ -> failwith "boom") ] do
+        let load, _ = loader store
+        let m = { mk [ layerAll ] with Ensure = [ "check", EnsureCheck.Jsonata "x" ] } |> Mapping.withFunction "jsonata" fn
+        match Fergi.run m files load with
+        | Error [ e ] ->
+            Assert.Equal(ErrorCodes.ensureFailed, e.Code)
+            Assert.Contains("check", e.Message)
+        | other -> failwithf "unexpected %A" other
+
+[<Fact>]
+let ``jsonata Ensure without a registered jsonata function fails validation`` () =
+    let m = { mk [ layerAll ] with Ensure = [ "check", EnsureCheck.Jsonata "x" ] }
+    match Mapping.validate m with
+    | [ e ] ->
+        Assert.Equal(ErrorCodes.mappingFunctionUnknown, e.Code)
+        Assert.Contains<(string * string)>(("ensure", "check"), e.Context)
+    | other -> failwithf "unexpected %A" other
+    Assert.Empty(Mapping.validate (Mapping.withFunction "jsonata" (fakeJsonata (Ok(Bool true))) m))

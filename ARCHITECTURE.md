@@ -41,8 +41,8 @@ follows from that:
   mapping file, not the transpiled builders.
 - **Anything that cannot be data stays beside the rules and is referenced by name.** Custom functions are
   registered under a name and called by `Rule.Compute`; `Ensure` closure hooks are a separate field and exist
-  only in the program that runs the mapping (the in-process flavour of `Ensure`; the file flavours, `jsonata`
-  and `falid`, are not built yet). A file can name a function, and whoever runs it must supply that function,
+  only in the program that runs the mapping (the in-process flavour of `Ensure`). The file flavours are `EnsureCheck.Jsonata` (built: a boolean predicate over the
+  output document, run through the registered `jsonata` function, file field `ensure`) and `falid` (not built yet). A file can name a function, and whoever runs it must supply that function,
   or validation fails before any input is loaded.
 
 ### `Node` is the working form; the format lives at the edges
@@ -112,11 +112,11 @@ rules:
   and function names are declared: `Fergi.run` does, and the standalone `Mapping.validate` does (`Jsonata.validate`
   adds expression syntax on .NET).
 - **Writing fails, listing every offender, when the mapping holds something a file cannot say**
-  (`mapping.notSerialisable`): an `Ensure` closure hook (code, in-process only), a function registered with `Mapping.withFunction` (it
+  (`mapping.notSerialisable`): an `Ensure` closure hook (code, in-process only; a `jsonata` ensure is written), a function registered with `Mapping.withFunction` (it
   runs only in the process that registered it; the built-ins and the name `jsonata` are written by name, and
   an unregistered name is written too, since validation reports it), and a selector or pointer that does not
   read back as itself (a `Where` key containing `=`, a numeric object key that would read back as an index).
-- **Not in the file:** `Ensure` closure hooks, the code of any custom function, and `Files` (where the inputs live; its
+- **Not in the file:** `Ensure` closure hooks (the `ensure` field holds `jsonata` entries only), the code of any custom function, and `Files` (where the inputs live; its
   shape is not decided). A `Timestamp` literal is a string once it has been through JSON text.
 - **`jsonata` sugar:** `open Fergi.Jsonata` adds a `jsonata "/dest" "expr"` operation to the `mapping` builder. It
   writes a `compute` of `jsonata` over `[ value expr; inputs; doc "" ]` and registers the function (the builder's

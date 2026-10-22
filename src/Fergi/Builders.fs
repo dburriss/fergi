@@ -149,7 +149,7 @@ module Builders =
         { Inputs: string list
           InputLists: string list
           Rules: Rule list
-          Ensure: (string * (Node -> Result<unit, Error list>)) list
+          Ensure: (string * EnsureCheck) list
           Functions: Map<string, Function>
           Errors: Error list }
 
@@ -206,7 +206,7 @@ module Builders =
         member _.Func(s: MappingState, name: string, fn: Function) = { s with Functions = Map.add name fn s.Functions }
         [<CustomOperation("ensure")>]
         member _.Ensure(s: MappingState, name: string, check: Node -> Result<unit, Error list>) =
-            { s with Ensure = s.Ensure @ [ name, check ] }
+            { s with Ensure = s.Ensure @ [ name, Fn check ] }
 
         /// Aggregate: one entry per file of the inputList `input`, set as a list at `into`.
         /// `build` gets the function that qualifies a pointer with the input name.

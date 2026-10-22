@@ -19,9 +19,23 @@
       "type": "array",
       "items": { "type": "string" }
     },
-    "rules": { "type": "array", "items": { "$ref": "#/$defs/rule" } }
+    "rules": { "type": "array", "items": { "$ref": "#/$defs/rule" } },
+    "ensure": {
+      "description": "Checks run on the final result. Each is a JSONata predicate over the output document that must return true; anything else (false, a non-boolean, no value) fails the run with ensure.failed.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/ensureEntry" }
+    }
   },
   "$defs": {
+    "ensureEntry": {
+      "type": "object",
+      "required": ["name", "jsonata"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "jsonata": { "type": "string" }
+      }
+    },
     "selector": {
       "description": "A JSON Pointer, where a segment written [key=value] picks the array item whose string field key equals value. The empty string is the root.",
       "type": "string",
