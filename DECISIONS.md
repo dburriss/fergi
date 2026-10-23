@@ -37,6 +37,11 @@ Rejected:
   that matches the output does the same), input lists have no end marker, and positional binding by the
   mapping's `inputs` order silently rebinds files when the mapping is reordered.
 - **Binding by the mapping's declaration order**: the same silent rebinding.
+- **Native AOT with Argu** (tried 2026-10-22, osx-arm64): it builds but fails at runtime. Untrimmed roots lose the
+  subcommand unions (`unrecognized argument: 'run'`); with `TrimmerRootAssembly` and an `rd.xml` for `Fergi.Cli`,
+  `Argu` and `FSharp.Core` the binary grows to 24 MB and still crashes in FSharp.Core's union reflection
+  (`The constructor method 'get_Validate' for the union case could not be found`). Use a self-contained single file
+  (about 78 MB, works). AOT would need the hand-rolled parser and a check of JSONata and the YAML adapter.
 - **A comma-separated `-l`**: breaks paths with commas; repeating the flag does not.
 - **Hand-rolled argument parsing** (what the first cut had): fine for two commands, but it did not scale to
   `--help` per command or more commands, and the other tools in this family (eru) use Argu.
