@@ -2,7 +2,7 @@
 
 Snapshot of the Fnode / Fergi work. Design sources live in the `second-brain` vault: `Shared Document Core Design.md` (Fnode, the shared core) and `Fergi.md` (the merge/mapping library). Findings from the spike are in `docs/fergi-spike.md`; Fable notes are in `docs/fable.md`; how the pieces fit is in `ARCHITECTURE.md`; larger decisions with their rejected alternatives are in `DECISIONS.md`; rules for coding agents are in `AGENTS.md`.
 
-Last verified: 2026-10-22 (not re-run on Fable after the CLI; the CLI is outside that suite). `dotnet build Fergi.slnx -c Release` has 0 warnings. `dotnet test Fergi.slnx -c Release` passes 775 tests. `scripts/fable-test.sh all` passes 710 entries on Fable JS and on Fable Python. Nothing is published.
+Last verified: 2026-10-24 on the YamlValue 0.2.1 package reference. `dotnet build Fergi.slnx -c Release` has 0 warnings. `dotnet test Fergi.slnx -c Release` passes 775 tests. `scripts/fable-test.sh all` passes 710 entries on Fable JS and on Fable Python. Nothing is published.
 
 ## Delivery plan (from the Fnode design doc)
 
@@ -11,7 +11,7 @@ Last verified: 2026-10-22 (not re-run on Fable after the CLI; the CLI is outside
 | 1 | Core spike: `Node`, `Path` (JSON Pointer), `Node.tryGet/set/remove`, `Error`, `Parsed`, `Format` | [x] Done |
 | 2 | `Fnode.Yaml` on .NET | [x] Done, now also with positions and original timestamp text |
 | 3 | JSON library (`JsonValue`) plus `Fnode.Json`, shared conformance suite | [x] Done. The JSON Test Suite passes with zero deviations |
-| 4 | Back-port to YamlValue: positions, timestamp text, Fable | [x] Done in `../fsharp-yaml` (unreleased). Our projects also compile and test under Fable JS and Python |
+| 4 | Back-port to YamlValue: positions, timestamp text, Fable | [x] Done and released as `FSharp.Data.YamlValue` 0.2.1. Our projects also compile and test under Fable JS and Python |
 | 5 | Fergi spike consumes the core, IDP defaults-plus-overrides case end to end | [x] Done, with a mapping data form, real YAML/JSON fixtures and provenance |
 | 6 | Publish `0.x` alpha prereleases of core and adapters | [ ] **Not started**. The P1/P2 API additions are in, so the core API shape is ready |
 | 7 | Falid consumes the core (`file:line:col` in the CLI) | [ ] Not started |
@@ -38,7 +38,7 @@ Test counts on .NET: Fnode 30, JsonValue 323, Fnode.Json 11, Fnode.Yaml 57, Conf
 - `Int of int64` stays. Under Fable int64 is exact on JS and Python (values past 2^53 and int64 min/max round-trip through JSON and YAML).
 - `Timestamp of string` holds the original ISO text. Core is pure and Fable-safe, with no reflection, IO or dependencies.
 - `Where` is not in core `Path`. It is a Fergi selector with `[key=value]` segment syntax.
-- `Fnode.Yaml` references `../fsharp-yaml` by **project reference** while YamlValue changes. Swap back to the NuGet package once it stabilises.
+- `Fnode.Yaml` uses the `FSharp.Data.YamlValue` 0.2.1 NuGet package, which ships its F# sources under `fable/` so Fable JS and Python work from the package. `Directory.Build.props` pins `FSharpCoreImplicitPackageVersion` to 10.1.402 because YamlValue needs it and this SDK implies 10.1.401.
 - Computed values are `Rule.Compute { Fn; Args; Dest }`: only the function **name** is in the rule, so mappings stay serialisable for a CLI. Functions are pure `Node list -> Result<Node, string>` held in `Mapping.Functions` (default `Functions.builtins`; add with `Mapping.withFunction`). Unknown names fail validation before any file loads.
 - The mapping form separates mapping and files (the `files` variant in `Fergi.md`). `Rule` is plain data. `Ensure` hooks are a separate field so `Rule` stays serialisable. `Resolve` conflict handlers stay code-only.
 - `Op`, `ListStrategy`, `OnConflict`, `Rule` and `ConflictMode` all use `[<RequireQualifiedAccess>]`.
@@ -48,7 +48,7 @@ Test counts on .NET: Fnode 30, JsonValue 323, Fnode.Json 11, Fnode.Yaml 57, Conf
 
 ## Related state in `../fsharp-yaml`
 
-Unreleased commits, not yet versioned or published: surrogate-pair escapes, quoting of `<<` and `...`, `!!float` tagging so every finite float round-trips, `ParseWithPositions`, `ParseWithMetadata` (original timestamp text), Fable JS and Python support with its own harness, plus docs. Fnode depends on all of it through the project reference.
+Everything Fnode needs is released in `FSharp.Data.YamlValue` 0.2.1: surrogate-pair escapes, quoting of `<<` and `...`, `!!float` tagging so every finite float round-trips, `ParseWithPositions`, `ParseWithMetadata` (original timestamp text) and Fable JS and Python support (sources under `fable/` in the package).
 
 ## Known limits and findings
 
@@ -76,7 +76,7 @@ Full detail and proposed fixes are in `docs/fergi-spike.md`.
 
 1. [ ] **Priority-1 Fnode API fixes before publishing** (from the findings doc): a public `Path` segment escape and parse, a creating set plus `exists`, a way to tell "absent" from "mismatch", and NaN-safe equality.
 2. [ ] Priority-2 fixes: object helpers (`tryFindKey`, upsert and remove by key, `hasDuplicateKeys`), structured context on `Error`, the numeric key vs `Index` pointer ambiguity.
-3. [ ] **Step 6:** check package names on NuGet, npm and PyPI (`Fnode` is a placeholder), decide the final name of `JsonValue`, swap `Fnode.Yaml` back to a released YamlValue package, then publish `0.x` alphas.
+3. [ ] **Step 6:** check package names on NuGet, npm and PyPI (`Fnode` is a placeholder), decide the final name of `JsonValue`, then publish `0.x` alphas.
 4. [ ] Step 7: Falid consumes the core.
 5. [ ] Fergi features (see `docs/fergi-spike.md` section 7):
     - [x] The computation expressions and custom operations (confirmed under Fable JS and Python).
@@ -112,5 +112,5 @@ Full detail and proposed fixes are in `docs/fergi-spike.md`.
     - **Platforms.** Only osx-arm64 has been built and run. Decide the set (for example osx-arm64, osx-x64, linux-x64, linux-arm64, win-x64) and smoke-test each.
     - **Distribution.** GitHub releases with checksums, or NuGet for the tool form. Wrappers for npm and PyPI only if producers in those ecosystems want a one-line install (item 14); they would ship the binary, not reimplement it.
     - **Version and `--version`.** There is no `--version` command and no version policy yet. Add one (eru's `VersionCli` is the pattern) and decide whether the CLI is versioned with the core packages or on its own.
-    - **CI.** The repo has no CI (item 13). A release build needs one, and it has to check out `../fsharp-yaml` beside this repo until `Fnode.Yaml` uses a released YamlValue package (step 6).
+    - **CI.** The repo has no CI (item 13). A release build needs one.
     - **Dependency on step 6.** A self-contained binary built from source does not need the core packages published. A NuGet tool package bundles its dependencies, so it does not either, but publishing the core first keeps one story for versions.

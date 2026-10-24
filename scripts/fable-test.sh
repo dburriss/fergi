@@ -37,42 +37,10 @@ run_js() {
   check_output "$out/result.txt"
 }
 
-# Fable mirrors a referenced project's folder into the output (here `fsharp-yaml/`, the sibling
-# repo that provides YamlValue) and imports it as `from fsharp-yaml.src...`, which is not valid
-# Python. Rename every hyphenated folder to use underscores and rewrite the imports to match.
-fix_python_hyphens() {
-  python3 - "$1" <<'PY'
-import os, re, sys
-out = sys.argv[1]
-renames = {}
-for base, dirs, _ in os.walk(out, topdown=False):
-    if "fable_modules" in base.split(os.sep) or "__pycache__" in base:
-        continue
-    for d in dirs:
-        if "-" in d and d != "fable_modules":
-            new = d.replace("-", "_")
-            os.rename(os.path.join(base, d), os.path.join(base, new))
-            renames[d] = new
-for base, _, files in os.walk(out):
-    if "fable_modules" in base.split(os.sep) or "__pycache__" in base:
-        continue
-    for f in files:
-        if f.endswith(".py"):
-            path = os.path.join(base, f)
-            text = open(path, encoding="utf-8").read()
-            new = text
-            for old, repl in renames.items():
-                new = re.sub(r"(from|import) " + re.escape(old) + r"\b", r"\1 " + repl, new)
-            if new != text:
-                open(path, "w", encoding="utf-8").write(new)
-PY
-}
-
 run_python() {
   local out="$proj/out-python"
   rm -rf "$out"
   dotnet fable "$proj" --lang python -o "$out" --noCache
-  fix_python_hyphens "$out"
   if [ ! -x "$proj/.venv/bin/python" ]; then
     local py
     py="$(command -v python3.13 || command -v python3.12 || command -v python3)"

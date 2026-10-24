@@ -19,8 +19,6 @@ Run what covers your change and report the result as it is (a failing test is a 
 
 ## Running things
 
-- **Sibling repo.** `Fnode.Yaml` references `../fsharp-yaml` by project reference, so that repo must be checked
-  out next to this one.
 - **JS runs use `bun`.** Node is not installed on this machine. The scripts pick `bun` first and fall back to
   `node`. Do not assume `node` or `npm` exist.
 - **Python runs use a venv, 3.13 here** (3.12+ for the Fable suite, 3.10+ for the JSONata one). The scripts

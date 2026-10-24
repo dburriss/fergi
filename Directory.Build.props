@@ -7,6 +7,8 @@
     <OtherFlags>$(OtherFlags) --nowarn:57</OtherFlags>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);NU1701</NoWarn>
+    <!-- FSharp.Data.YamlValue 0.2.0 needs FSharp.Core 10.1.402, newer than the one this SDK implies. -->
+    <FSharpCoreImplicitPackageVersion>10.1.402</FSharpCoreImplicitPackageVersion>
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
   </PropertyGroup>

@@ -4,7 +4,7 @@
 JavaScript and Python from the same source (no separate files). The few differences are
 `#if FABLE_COMPILER` / `#if FABLE_COMPILER_PYTHON` branches; on .NET every branch is the BCL call
 the code always made, so .NET behaviour is unchanged. `Fnode.Yaml` builds on YamlValue
-(`../fsharp-yaml`, project reference), which has its own Fable support.
+(the `FSharp.Data.YamlValue` NuGet package, which ships its F# sources under `fable/`), which has its own Fable support.
 
 ## Running the test suite under Fable
 
@@ -21,7 +21,6 @@ Prerequisites:
 - .NET SDK 8+ (the Fable tool is pinned to 5.21.0 in `.config/dotnet-tools.json`; the script runs `dotnet tool restore`)
 - JS: `bun` or `node` (anything that runs ES modules). Tested with bun 1.4
 - Python: 3.12+ (3.13 tested). The script creates `tests/Fnode.Fable/.venv` and installs `fable-library==5.21.0` (network needed the first time)
-- `../fsharp-yaml` checked out next to this repo (Fnode.Yaml's project reference)
 
 ### How it works
 
@@ -154,9 +153,6 @@ Float text is the only visible difference, and it is spelling, not value:
 - **Strings are code points, not UTF-16 units.** An astral character has `Length` 1, so `Pos.Column` /
   `Offset` count it as one unit (JS and .NET count two). A `𝄞` escape decodes to the single
   character. Lone surrogates cannot be represented.
-- Fable emits `fsharp-yaml/` (the sibling repo's folder) as a Python package name; the hyphen is not a
-  valid module name, so `scripts/fable-test.sh` renames it to `fsharp_yaml` and rewrites the imports
-  after compiling. Not needed once YamlValue is a package reference.
 
 ## Timestamps under Fable
 

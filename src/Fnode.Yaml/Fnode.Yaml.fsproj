@@ -9,8 +9,7 @@
     <Compile Include="YamlFormat.fs" />
   </ItemGroup>
   <ItemGroup>
-    <!-- Project reference while YamlValue is changing (steps 4+); swap back to PackageReference once it stabilises. -->
-    <ProjectReference Include="../../../fsharp-yaml/src/FSharp.Data.YamlValue/FSharp.Data.YamlValue.fsproj" />
+    <PackageReference Include="FSharp.Data.YamlValue" Version="0.2.1" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Fnode/Fnode.fsproj" />

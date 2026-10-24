@@ -302,5 +302,3 @@ dotnet build Fergi.slnx -c Release
 dotnet test Fergi.slnx -c Release
 scripts/fable-test.sh all        # JS (bun) and Python; slow, needs network the first time
 ```
-
-`Fnode.Yaml` references `../fsharp-yaml` by project reference, so check that repo out next to this one.
