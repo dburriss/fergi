@@ -74,8 +74,8 @@ Full detail and proposed fixes are in `docs/fergi-spike.md`.
 
 ## Next
 
-1. [ ] **Priority-1 Fnode API fixes before publishing** (from the findings doc): a public `Path` segment escape and parse, a creating set plus `exists`, a way to tell "absent" from "mismatch", and NaN-safe equality.
-2. [ ] Priority-2 fixes: object helpers (`tryFindKey`, upsert and remove by key, `hasDuplicateKeys`), structured context on `Error`, the numeric key vs `Index` pointer ambiguity.
+1. [x] **Priority-1 Fnode API fixes before publishing** (from the findings doc): `Path.escapeSegment`/`unescapeSegment`/`parseSegment`, `Node.setCreating` and `Node.exists`, `Node.tryFind` (`Ok None` is absent, `Error` is a mismatch), and the NaN-safe `Node.equals` (plain `=` is unchanged). Checked against the code on 2026-10-24.
+2. [x] Priority-2 fixes: `Node.tryFindKey`/`upsertKey`/`removeKey`/`hasDuplicateKeys` (duplicate keys stay allowed in `Obj`), `Error.Context` with `withContext`/`mapMessage`/`describe`, and `Path.resolve` for the numeric key vs `Index` ambiguity (the ambiguity itself is documented in `Path.fs`, not removed). Items 5 and 9 of the findings doc stay P3, documentation only.
 3. [ ] **Step 6:** check package names on NuGet, npm and PyPI (`Fnode` is a placeholder), decide the final name of `JsonValue`, then publish `0.x` alphas.
 4. [ ] Step 7: Falid consumes the core.
 5. [ ] Fergi features (see `docs/fergi-spike.md` section 7):
