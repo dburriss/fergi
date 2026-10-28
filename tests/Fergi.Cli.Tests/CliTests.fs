@@ -377,3 +377,22 @@ let ``a declared list with no -l reports it missing`` () =
     let r = cli [ "run"; w.Write "c.yaml" (yaml m); "-i"; "a=" + w.Path "repos/search.yaml"; "-o"; w.Path "out.yaml" ]
     Assert.Equal(1, r.Code)
     Assert.Contains("mapping.inputMissing", errText r)
+
+[<Fact>]
+let ``--version prints the package version without a commit suffix`` () =
+    let r = cli [ "--version" ]
+    Assert.Equal(0, r.Code)
+    let expected, _ = VersionCli.current ()
+    Assert.Equal(expected, r.Out.Head)
+    Assert.DoesNotContain("+", r.Out.Head)
+    Assert.Matches(@"^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$", r.Out.Head)
+
+[<Fact>]
+let ``the version command is the same as --version`` () =
+    Assert.Equal<string list>((cli [ "--version" ]).Out, (cli [ "version" ]).Out)
+
+[<Fact>]
+let ``parseVersion splits the commit off an informational version`` () =
+    Assert.Equal(("0.1.0-alpha.1", Some "abc123"), VersionCli.parseVersion "0.1.0-alpha.1+abc123")
+    Assert.Equal(("0.1.0", None), VersionCli.parseVersion "0.1.0")
+    Assert.Equal(("0.1.0", None), VersionCli.parseVersion "0.1.0+")

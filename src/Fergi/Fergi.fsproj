@@ -1,9 +1,23 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
-    <IsPackable>false</IsPackable>
+    <IsPackable>true</IsPackable>
+    <Version>$(FergiVersion)</Version>
+    <Authors>Devon Burriss</Authors>
+    <Copyright>Copyright (c) 2026 Devon Burriss</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/dburriss/fergi</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/dburriss/fergi</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>fergi mapping yaml json fsharp fable</PackageTags>
     <Description>Fergi: selectors, document operations and patches over the Fnode core. Pure and Fable-safe.</Description>
   </PropertyGroup>
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
   <ItemGroup>
     <Compile Include="ErrorCodes.fs" />
     <Compile Include="Selector.fs" />

@@ -2,8 +2,22 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <IsPackable>false</IsPackable>
+    <Version>$(FergiVersion)</Version>
+    <Authors>Devon Burriss</Authors>
+    <Copyright>Copyright (c) 2026 Devon Burriss</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/dburriss/fergi</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/dburriss/fergi</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>fergi mapping jsonata fsharp</PackageTags>
     <Description>JSONata expressions for Fergi mappings (spike). .NET only: it wraps Jsonata.Net.Native, so it stays out of the Fable-safe core.</Description>
   </PropertyGroup>
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
   <ItemGroup>
     <Compile Include="Jsonata.fs" />
   </ItemGroup>

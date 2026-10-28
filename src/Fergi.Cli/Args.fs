@@ -28,8 +28,10 @@ type RunArgs =
 type FergiArgs =
     | [<SubCommand>] Validate of ParseResults<ValidateArgs>
     | [<SubCommand>] Run      of ParseResults<RunArgs>
+    | [<AltCommandLine("--version")>] Version
     interface IArgParserTemplate with
         member a.Usage =
             match a with
             | Validate _ -> "Check a mapping file without running it."
             | Run _      -> "Run a mapping over input files and write one output file."
+            | Version    -> "Print the fergi version and commit."

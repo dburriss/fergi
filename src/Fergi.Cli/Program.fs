@@ -3,6 +3,7 @@ module Fergi.Cli.Program
 open Argu
 open Fergi.Cli.ValidateCli
 open Fergi.Cli.RunCli
+open Fergi.Cli.VersionCli
 
 /// Parse and dispatch. A command is an active pattern over the parse result (see `ValidateCli`, `RunCli`).
 /// Split from `main` so the tests can run it against a temp directory and capture the output.
@@ -15,6 +16,7 @@ let run (argv: string[]) (io: Io) : int =
         match parsed with
         | ValidateCmd cmd -> ValidateCli.run io cmd
         | RunCmd cmd -> RunCli.run io cmd
+        | VersionCmd () -> VersionCli.run io
         | _ ->
             io.Err(parser.PrintUsage())
             2

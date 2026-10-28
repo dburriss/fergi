@@ -3,15 +3,34 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <RootNamespace>Fergi.Cli</RootNamespace>
-    <IsPackable>false</IsPackable>
-    <Description>The fergi command line: validate and run mapping files. .NET only (it references Fergi.Jsonata).</Description>
+    <IsPackable>true</IsPackable>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>fergi</ToolCommandName>
+    <PackageId>Fergi.Tool</PackageId>
+    <Title>fergi</Title>
+    <Version>$(FergiVersion)</Version>
+    <Authors>Devon Burriss</Authors>
+    <Copyright>Copyright (c) 2026 Devon Burriss</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/dburriss/fergi</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/dburriss/fergi</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>fergi mapping yaml json cli dotnet-tool</PackageTags>
+    <Description>The fergi command line (dotnet tool): validate and run mapping files. .NET only (it references Fergi.Jsonata).</Description>
   </PropertyGroup>
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
   <ItemGroup>
     <Compile Include="Args.fs" />
     <Compile Include="Io.fs" />
     <Compile Include="Shared.fs" />
     <Compile Include="ValidateCli.fs" />
     <Compile Include="RunCli.fs" />
+    <Compile Include="VersionCli.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>

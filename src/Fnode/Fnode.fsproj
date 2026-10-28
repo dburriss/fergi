@@ -2,6 +2,8 @@
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
     <IsPackable>false</IsPackable>
+    <!-- The published Fnode version; Fergi packages depend on it through the project reference. -->
+    <Version>0.1.0</Version>
     <Description>Shared document core: Node tree, JSON Pointer paths, errors and the Format interface. Pure and Fable-safe, no dependencies.</Description>
   </PropertyGroup>
   <ItemGroup>
