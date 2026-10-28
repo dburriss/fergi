@@ -1,0 +1,83 @@
+name: Publish NuGet
+
+on:
+  push:
+    tags:
+      - 'v*'    # e.g., v0.1.0 or v0.1.0-alpha.1; must equal <Version> in Directory.Build.props
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # required to request the OIDC token for Trusted Publishing
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      # The tag is checked against the version in the repo, not used to override it: a global
+      # -p:Version would also change Fnode (pinned at its published 0.1.0), and so the Fnode
+      # dependency range in the Fergi package. scripts/publish.sh bumps the version, commits and
+      # tags, so a mismatch means the tag was made by hand on the wrong commit.
+      - name: Check the tag matches the repo version
+        id: version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          REPO_VERSION="$(dotnet msbuild src/Fergi.Cli/Fergi.Cli.fsproj -getProperty:Version | tr -d '[:space:]')"
+          echo "tag: $TAG_VERSION, Directory.Build.props: $REPO_VERSION"
+          if [ "$TAG_VERSION" != "$REPO_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match <Version> $REPO_VERSION in Directory.Build.props"
+            exit 1
+          fi
+          echo "version=$TAG_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Restore
+        run: dotnet restore Fergi.slnx
+
+      - name: Build
+        run: dotnet build Fergi.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test Fergi.slnx --configuration Release --no-build --verbosity normal
+
+      # Fergi and Fergi.Tool share one version. Fergi.Jsonata is not published (spike; the tool bundles it). The Fnode* packages are released separately.
+      - name: Pack
+        run: |
+          for project in src/Fergi/Fergi.fsproj src/Fergi.Cli/Fergi.Cli.fsproj; do
+            dotnet pack "$project" \
+              --configuration Release \
+              --no-build \
+              --output ./artifacts
+          done
+          ls -l ./artifacts
+
+      - name: Check the package versions
+        run: |
+          for id in Fergi Fergi.Tool; do
+            test -f "./artifacts/$id.${{ steps.version.outputs.version }}.nupkg" || { echo "::error::missing $id ${{ steps.version.outputs.version }}"; exit 1; }
+          done
+
+      # Exchanges the job's OIDC token for a short-lived (1 hour) nuget.org API key.
+      # Requires a Trusted Publishing policy on nuget.org for this repo + this workflow file name.
+      - name: NuGet login (OIDC to temp API key)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }} # nuget.org username (profile name), NOT your email address
+
+      - name: Publish to nuget.org
+        run: |
+          dotnet nuget push ./artifacts/*.nupkg \
+            --source https://api.nuget.org/v3/index.json \
+            --api-key ${{ steps.login.outputs.NUGET_API_KEY }} \
+            --skip-duplicate

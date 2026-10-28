@@ -1,0 +1,85 @@
+name: Build & Test
+
+on:
+  push:
+    branches: [ "*" ]
+  pull_request:
+    branches: [ "*" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # The projects target net8.0, so the tests need the .NET 8 runtime next to the 10 SDK.
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Restore
+        run: dotnet restore Fergi.slnx
+
+      # Warnings are errors (Directory.Build.props), so a warning fails the build.
+      - name: Build
+        run: dotnet build Fergi.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test Fergi.slnx --configuration Release --no-build --verbosity normal
+
+  # The shared test sources compiled by Fable and run on JS (bun) and Python (3.13).
+  # Slow (several minutes), so it is its own job and does not hold up the .NET results.
+  fable:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      # The script restores the pinned Fable tool, creates the Python venv and runs both targets.
+      - name: Fable tests (JS and Python)
+        run: scripts/fable-test.sh all
+
+  # The JSONata conformance suite on .NET, JS and Python against the recorded expectations
+  # (STATUS item 13). It installs npm and pip packages, so it is separate as well.
+  jsonata-conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: JSONata conformance
+        run: scripts/jsonata-conformance.sh check all
