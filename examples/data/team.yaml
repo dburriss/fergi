@@ -1,0 +1,10 @@
+# Team overrides, layered over the org defaults.
+owner: energy
+tier: premium
+ports:
+  - name: http
+    port: 80
+  - name: grpc
+    port: 50051
+labels:
+  team: energy

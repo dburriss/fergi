@@ -1,0 +1,17 @@
+# One entry per service file. Run it with -l services="examples/data/services/*.yaml".
+version: 1
+inputs: []
+inputLists: [services]
+rules:
+  - collect:
+      input: services
+      into: /services
+      sortBy: /name
+      entry:
+        - copy: { from: "services:/name", to: /name }
+        - copy: { from: "services:/owner", to: /owner }
+        - compute:
+            to: /title
+            fn: upper
+            args:
+              - { from: "services:/name" }

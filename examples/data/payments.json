@@ -1,0 +1,7 @@
+{
+  "name": "payments",
+  "first": "Grace",
+  "last": "Hopper",
+  "replicas": 3,
+  "labels": { "team": null, "tier": "gold" }
+}

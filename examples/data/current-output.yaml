@@ -1,0 +1,11 @@
+# What is on disk today, for the dry-run example (08-plan-dry-run.fsx).
+owner: platform
+replicas: 2
+tier: standard
+ports:
+  - name: http
+    port: 8080
+labels:
+  team: platform
+name: billing
+deprecated: true

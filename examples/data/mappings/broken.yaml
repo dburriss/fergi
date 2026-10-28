@@ -1,0 +1,7 @@
+version: 1
+inputs: [org]
+rules:
+  - layer: [org]
+  - copy: { from: "org:/name", to: no-slash }
+  - explode: { path: /x }
+  - set: { to: /y }

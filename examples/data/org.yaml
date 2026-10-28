@@ -1,0 +1,12 @@
+# Org-wide defaults, the lowest layer.
+owner: platform
+replicas: 2
+tier: standard
+ports:
+  - name: http
+    port: 8080
+  - name: metrics
+    port: 9090
+labels:
+  team: platform
+  cost-centre: cc-100

@@ -1,0 +1,20 @@
+# Merge the org defaults and one service, then reshape. Used by the CLI and by 07-mapping-files.fsx.
+$schema: ../../../docs/mapping.schema.json
+version: 1
+inputs: [org, service]
+rules:
+  - layer: [org, service]
+  - copy: { from: "service:/name", to: /metadata/name }
+  - defaultTo: { to: /kind, value: service }
+  - rename: { from: /owner, to: /metadata/owner }
+  - drop: { path: /internal }
+  - compute:
+      to: /contact
+      fn: join
+      args:
+        - { value: " " }
+        - { from: "service:/first" }
+        - { from: "service:/last" }
+ensure:
+  - name: has a name
+    jsonata: 'metadata.name != null'

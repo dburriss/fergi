@@ -1,10 +1,10 @@
-// The snippets from README.md, run against the built libraries.
+// The library snippets from the docs, run against the built libraries.
 //
 //   build first:  dotnet build Fergi.slnx -c Release
 //   run:          dotnet fsi examples/readme.fsx
 //
 // The data is a toy, so some runs print an error on purpose. Each section says which.
-// Every section shows the computation expression (CE) form; the README shows the plain-data equivalent.
+// Every section shows the computation expression (CE) form; docs/reference/mapping.md shows the plain-data equivalent.
 
 #r "../src/Fnode/bin/Release/net8.0/Fnode.dll"
 #r "../src/Fergi/bin/Release/net8.0/Fergi.dll"

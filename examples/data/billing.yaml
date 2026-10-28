@@ -1,0 +1,10 @@
+# One service.
+name: billing
+first: Ada
+last: Lovelace
+internal: scratch notes
+old: legacy
+replicas: 4
+ports:
+  - name: http
+    port: 8080
