@@ -4,7 +4,7 @@ open Xunit
 open FsCheck
 open FsCheck.Xunit
 open Fnode
-open Fergi.Json
+open Flexi.Json
 
 let private parseOk (s: string) =
     match Json.format.Parse s with

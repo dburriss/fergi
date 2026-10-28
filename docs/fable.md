@@ -1,10 +1,11 @@
 # Fable support
 
-`Fnode`, `JsonValue`, `Fnode.Json`, `Fnode.Yaml` and `Fergi` compile with [Fable](https://fable.io) 5.21.0 to
+`Fnode`, `Fnode.Json`, `Fnode.Yaml` and `Fergi` compile with [Fable](https://fable.io) 5.21.0 to
 JavaScript and Python from the same source (no separate files). The few differences are
 `#if FABLE_COMPILER` / `#if FABLE_COMPILER_PYTHON` branches; on .NET every branch is the BCL call
-the code always made, so .NET behaviour is unchanged. `Fnode.Yaml` builds on YamlValue
-(the `FSharp.Data.YamlValue` NuGet package, which ships its F# sources under `fable/`), which has its own Fable support.
+the code always made, so .NET behaviour is unchanged. `Fnode.Json` and `Fnode.Yaml` build on the
+`Flexi.Json` and `Flexi.Yaml` NuGet packages (0.1.0), which ship their F# sources under `fable/` and have their own Fable support.
+Their own test suites (including the JSON Test Suite) live in their repositories, not here.
 
 ## Running the test suite under Fable
 
@@ -25,12 +26,11 @@ Prerequisites:
 ### How it works
 
 xUnit and FsCheck cannot run under Fable, so `tests/Fnode.Fable` compiles the **same test files** as the
-.NET projects (`Fnode.Tests`, `JsonValue.Tests`, `Fnode.Json.Tests`, `Fnode.Yaml.Tests`,
+.NET projects (`Fnode.Tests`, `Fnode.Json.Tests`, `Fnode.Yaml.Tests`,
 `Fnode.Conformance`, `Fergi.Tests`) through two small shims, `XunitShim.fs` and `FsCheckShim.fs`.
 `scripts/fable-gen-runner.fsx` (run by the script; `dotnet fsi`) reads those files and generates
 `Runner.generated.fs` (one entry per `[<Fact>]`, `[<Theory>]` data set or `[<Property>]`, calling the test
-function directly), `JsonTestSuite.generated.fs` (the vendored JSON Test Suite embedded as strings) and
-`Fixtures.generated.fs` (the `tests/Fergi.Tests/data` YAML/JSON files as relative path -> text).
+function directly) and `Fixtures.generated.fs` (the `tests/Fergi.Tests/data` YAML/JSON files as relative path -> text).
 All generated files are git-ignored. `tests/Fnode.Fable` is not in `Fergi.slnx`; the harness is also
 runnable on .NET (`dotnet run --project tests/Fnode.Fable`) as a check on the shims.
 
@@ -42,7 +42,6 @@ When you add a test file to a .NET test project, add the same `<Compile Include=
 | Project | .NET (xUnit) | Fable JS | Fable Python |
 |---|---|---|---|
 | Fnode.Tests | 22 | 22 | 22 |
-| JsonValue.Tests | 323 | 323 | 323 |
 | Fnode.Json.Tests | 11 | 11 | 11 |
 | Fnode.Yaml.Tests | 57 | 57 | 57 |
 | Fnode.Conformance | 47 | 30 | 30 |
@@ -132,16 +131,16 @@ Float text is the only visible difference, and it is spelling, not value:
 - **Python** `string` spells whole doubles out in full (1e300 = 301 digits), so from 1e21 up
   (and below 1e-6) the JSON printer uses `G17` (the shortest repr, `1e+300`). Below 1e21 Python prints
   digits like JS and .NET (`10000000000000000.0`).
-- YAML float text comes from YamlValue's `G17`: `0.1` is `0.10000000000000001` on .NET and `0.1` on
+- YAML float text comes from Flexi.Yaml's `G17`: `0.1` is `0.10000000000000001` on .NET and `0.1` on
   Python (shortest repr); both re-parse to the same double.
 - NaN and infinities: JSON prints `null`, YAML `.nan`/`.inf`, on every target.
 
 ### Number findings that are not Fable specific
 
-- YamlValue resolves an exponent form with an integral value in int64 range to a number with no
+- Flexi.Yaml resolves an exponent form with an integral value in int64 range to a number with no
   fraction, so YAML `1e16`, `2.5e3`, `1e2` become `Int`, while JSON gives `Float`. YAML 1.2 calls
   these floats. Consequence: JSON text such as `1.5E+16` (what .NET prints for 1.5e16) read through the
-  YAML parser is an `Int`. This affects .NET too and is in YamlValue (read-only here); `Fnode.Yaml.print`
+  YAML parser is an `Int`. This affects .NET too and is in Flexi.Yaml (read-only here); `Fnode.Yaml.print`
   avoids it by tagging floats (`!!float`).
 - YAML `1e400` parses to `Float Infinity` (JSON rejects it as out of range). Same on all targets.
 
@@ -164,7 +163,7 @@ Float text is the only visible difference, and it is spelling, not value:
   including nested timestamps and text that already contains the marker prefix.
 - `Timestamp` text that is not YAML-shaped (`10/14/2026 10:00:00 +00:00`) is normalised through
   `DateTimeOffset.TryParse` on .NET. Fable's `TryParse` ignores culture and styles (and the compiler
-  rejects it), so under Fable `YamlConvert.ofNode` accepts only the shapes YamlValue itself resolves as
+  rejects it), so under Fable `YamlConvert.ofNode` accepts only the shapes Flexi.Yaml itself resolves as
   timestamps; anything else is kept as a string and re-parses as `Str`.
 - `YamlConvert.toNode` (no source text) renders a Timestamp from the instant: `.0000000+00:00` on .NET,
   `.000+00:00` under Fable (millisecond precision).

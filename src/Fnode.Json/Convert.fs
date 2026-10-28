@@ -1,6 +1,6 @@
 namespace Fnode
 
-open Fergi.Json
+open Flexi.Json
 
 /// Conversion between `JsonValue` and `Node`.
 module JsonConvert =

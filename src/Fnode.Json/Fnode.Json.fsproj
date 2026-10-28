@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
     <IsPackable>false</IsPackable>
-    <Description>JSON adapter for Fnode, built on Fergi.Json.JsonValue with source positions.</Description>
+    <Description>JSON adapter for Fnode, built on Flexi.Json with source positions.</Description>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Convert.fs" />
@@ -10,6 +10,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Fnode/Fnode.fsproj" />
-    <ProjectReference Include="../JsonValue/JsonValue.fsproj" />
+    <PackageReference Include="Flexi.Json" Version="0.1.0" />
   </ItemGroup>
 </Project>

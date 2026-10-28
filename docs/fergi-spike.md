@@ -173,8 +173,8 @@ Facts established by the spike, each with a suggested note edit:
 - **The first failing rule stops the run** (later rules would see a state that never existed); only load
   errors, name validation and `Ensure` failures accumulate. Rule errors are prefixed `rule i (Kind):`.
 - **`Ensure` is a field of `Mapping`**, not a `Rule`, to keep `Rule` plain data (serialisable).
-- Stale in `Fergi.md`: `Int of int`, `Where` in `Segment`, and "Fergi.Json" as a namespace (the placeholder
-  `JsonValue` namespace; do not `open Fergi.Json` and `open Fergi` together blindly).
+- Stale in `Fergi.md`: `Int of int`, `Where` in `Segment`, and "Fergi.Json" as a namespace (the JSON library was
+  later published as `Flexi.Json`, namespace `Flexi.Json`; `Flexi.Json` and `Flexi.Yaml` both define `Pos` and `Span`, so do not open both).
 - **Union case clash: fixed (follow-up [a]).** `Op.Append`/`ListStrategy.Append` and `Op.Set`/`Rule.Set` shared
   names. `Op`, `ListStrategy` and `OnConflict` are now `[<RequireQualifiedAccess>]` like `Rule`, so every case is
   written qualified.
@@ -207,6 +207,8 @@ order and grouping of layers is observable, which is exactly what a null-delete 
 result is not a monoid homomorphism.
 
 ## 5. Fable results
+
+(Historical numbers from the spike. The `JsonValue.Tests` row was the in-repo JSON library, since replaced by the `Flexi.Json` package and its own tests.)
 
 `scripts/fable-test.sh all` (Fable 5.21.0). The Fergi tests are compiled from the same sources through the
 existing xunit/FsCheck shims.

@@ -3,7 +3,7 @@ module Fnode.YamlConvert
 
 open System
 open System.Globalization
-open FSharp.Data
+open Flexi.Yaml
 open Fnode
 
 /// Decimal scale (number of digits after the point; 0 for integers).

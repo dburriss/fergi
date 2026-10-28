@@ -492,7 +492,7 @@ let ``parseAll error has a location`` () =
 
 [<Fact>]
 let ``toNode without source text renders a Timestamp from the parsed instant`` () =
-    match YamlConvert.toNode (FSharp.Data.YamlValue.Timestamp(System.DateTimeOffset(2024, 1, 2, 3, 4, 5, System.TimeSpan.Zero))) with
+    match YamlConvert.toNode (Flexi.Yaml.YamlValue.Timestamp(System.DateTimeOffset(2024, 1, 2, 3, 4, 5, System.TimeSpan.Zero))) with
     | Ok(Timestamp text) ->
         // sub-second precision is target-specific: .0000000 on .NET, .000 under Fable
         Assert.StartsWith("2024-01-02T03:04:05", text)

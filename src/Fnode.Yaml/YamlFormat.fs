@@ -1,7 +1,7 @@
 /// The YAML `Format` adapter.
 module Fnode.Yaml
 
-open FSharp.Data
+open Flexi.Yaml
 open Fnode
 
 let private firstLine (s: string) =
@@ -9,9 +9,9 @@ let private firstLine (s: string) =
     | -1 -> s
     | i -> s.Substring(0, i)
 
-let private pos (p: FSharp.Data.Pos) : Fnode.Pos = { Line = p.Line; Column = p.Column }
+let private pos (p: Flexi.Yaml.Pos) : Fnode.Pos = { Line = p.Line; Column = p.Column }
 
-let private span (s: FSharp.Data.Span) : Fnode.Span = { Start = pos s.Start; End = pos s.End }
+let private span (s: Flexi.Yaml.Span) : Fnode.Span = { Start = pos s.Start; End = pos s.End }
 
 let private ofException (ex: exn) : Error =
     match ex with

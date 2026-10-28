@@ -10,22 +10,14 @@
 
   <!-- Compiled by Fable (`scripts/fable-test.sh`), not by `dotnet test` (it is not in Fergi.slnx):
        the .NET suites live in the sibling test projects and these are the very same files, run
-       through tiny xUnit and FsCheck shims. Runner.generated.fs and JsonTestSuite.generated.fs are
        written by scripts/fable-gen-runner.fsx (run it before building this project).
        Keep the Compile lists in sync with the sibling .fsproj files (the generator reads those). -->
   <ItemGroup>
     <Compile Include="XunitShim.fs" />
     <Compile Include="FsCheckShim.fs" />
-    <Compile Include="JsonTestSuite.generated.fs" />
-    <Compile Include="JsonTestSuiteFable.fs" />
     <Compile Include="Fixtures.generated.fs" />
     <Compile Include="../Fnode.Tests/PathTests.fs" Link="Fnode.Tests/PathTests.fs" />
     <Compile Include="../Fnode.Tests/NodeOpsTests.fs" Link="Fnode.Tests/NodeOpsTests.fs" />
-    <Compile Include="../JsonValue.Tests/ParserTests.fs" Link="JsonValue.Tests/ParserTests.fs" />
-    <Compile Include="../JsonValue.Tests/PrinterTests.fs" Link="JsonValue.Tests/PrinterTests.fs" />
-    <Compile Include="../JsonValue.Tests/AccessorTests.fs" Link="JsonValue.Tests/AccessorTests.fs" />
-    <Compile Include="../JsonValue.Tests/PositionTests.fs" Link="JsonValue.Tests/PositionTests.fs" />
-    <Compile Include="../JsonValue.Tests/PropertyTests.fs" Link="JsonValue.Tests/PropertyTests.fs" />
     <Compile Include="../Fnode.Json.Tests/JsonFormatTests.fs" Link="Fnode.Json.Tests/JsonFormatTests.fs" />
     <Compile Include="../Fnode.Yaml.Tests/YamlFormatTests.fs" Link="Fnode.Yaml.Tests/YamlFormatTests.fs" />
     <Compile Include="../Fnode.Conformance/ConformanceTests.fs" Link="Fnode.Conformance/ConformanceTests.fs" />
@@ -49,7 +41,6 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Fnode/Fnode.fsproj" />
-    <ProjectReference Include="../../src/JsonValue/JsonValue.fsproj" />
     <ProjectReference Include="../../src/Fnode.Json/Fnode.Json.fsproj" />
     <ProjectReference Include="../../src/Fnode.Yaml/Fnode.Yaml.fsproj" />
     <ProjectReference Include="../../src/Fergi/Fergi.fsproj" />

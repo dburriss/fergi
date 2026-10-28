@@ -7,10 +7,16 @@
     <OtherFlags>$(OtherFlags) --nowarn:57</OtherFlags>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);NU1701</NoWarn>
-    <!-- FSharp.Data.YamlValue 0.2.0 needs FSharp.Core 10.1.402, newer than the one this SDK implies. -->
-    <FSharpCoreImplicitPackageVersion>10.1.402</FSharpCoreImplicitPackageVersion>
+    <!-- Flexi.Json and Flexi.Yaml 0.1.0 need FSharp.Core 10.1.403, newer than the one this SDK implies. -->
+    <FSharpCoreImplicitPackageVersion>10.1.403</FSharpCoreImplicitPackageVersion>
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    <!-- The one place the version of the Fergi packages (Fergi, Fergi.Jsonata, Fergi.Tool) is set.
+         scripts/publish.fsx rewrites <Version> and <PackageReleaseNotes> here and nowhere else, so both must stay in the
+         first PropertyGroup. Projects that set their own <Version> (Fnode.fsproj) keep it. -->
+    <Version>0.1.0-alpha.1</Version>
+    <PackageReleaseNotes></PackageReleaseNotes>
+    <FergiVersion>$(Version)</FergiVersion>
   </PropertyGroup>
 
 </Project>

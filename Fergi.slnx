@@ -6,7 +6,6 @@
     <Project Path="src/Fnode.Json/Fnode.Json.fsproj" />
     <Project Path="src/Fnode.Yaml/Fnode.Yaml.fsproj" />
     <Project Path="src/Fnode/Fnode.fsproj" />
-    <Project Path="src/JsonValue/JsonValue.fsproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Fergi.Cli.Tests/Fergi.Cli.Tests.fsproj" />
@@ -16,6 +15,5 @@
     <Project Path="tests/Fnode.Json.Tests/Fnode.Json.Tests.fsproj" />
     <Project Path="tests/Fnode.Tests/Fnode.Tests.fsproj" />
     <Project Path="tests/Fnode.Yaml.Tests/Fnode.Yaml.Tests.fsproj" />
-    <Project Path="tests/JsonValue.Tests/JsonValue.Tests.fsproj" />
   </Folder>
 </Solution>

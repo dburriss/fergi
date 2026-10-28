@@ -48,7 +48,9 @@ follows from that:
 ### `Node` is the working form; the format lives at the edges
 
 YAML and JSON both parse to the same `Node` tree, and nothing in Fergi knows which it came from. Adapters turn
-text into `Parsed` (the tree plus source locations) and back. This is why a mapping works the same over YAML
+text into `Parsed` (the tree plus source locations) and back. The text parsing itself is done by two separate
+packages, `Flexi.Json` and `Flexi.Yaml` (NuGet, 0.1.0; each ships its F# sources under `fable/`, so Fable JS and Python
+work), which `Fnode.Json` and `Fnode.Yaml` wrap; this repo no longer holds a JSON library. This is why a mapping works the same over YAML
 in and JSON out, and why converting to JSON text first would add nothing and lose locations, timestamp text and
 YAML-only values. Cost: `Node` carries no comments, so they do not survive a mapping.
 

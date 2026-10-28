@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs the shared test suites (Fnode, JsonValue, Fnode.Json, Fnode.Yaml, Conformance and Fergi)
+# Runs the shared test suites (Fnode, Fnode.Json, Fnode.Yaml, Conformance and Fergi)
 # under Fable (JS and/or Python); the Fergi project is part of both targets.
 #
 #   scripts/fable-test.sh [js|python|all]      (default: all)

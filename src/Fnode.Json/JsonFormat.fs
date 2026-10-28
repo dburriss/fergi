@@ -1,14 +1,14 @@
 namespace Fnode
 
-open Fergi.Json
+open Flexi.Json
 
 /// The JSON `Format`.
 [<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module Json =
 
-    let private pos (p: Fergi.Json.Pos) : Fnode.Pos = { Line = p.Line; Column = p.Column }
+    let private pos (p: Flexi.Json.Pos) : Fnode.Pos = { Line = p.Line; Column = p.Column }
 
-    let private span (s: Fergi.Json.Span) : Fnode.Span = { Start = pos s.Start; End = pos s.End }
+    let private span (s: Flexi.Json.Span) : Fnode.Span = { Start = pos s.Start; End = pos s.End }
 
     let private parse (text: string) : Result<Parsed, Error list> =
         try
