@@ -276,8 +276,17 @@ fergi run mapping.yaml -i org=defaults/org.yaml -o out.yaml --dry-run
   the mapping. `--dry-run` prints the changes against the current output and writes nothing.
 - Errors go to stderr as `file:line:col: code: message`. Exit codes: 0 ok, 1 validation or run errors, 2 usage.
 
-Build and run it with `dotnet run --project src/Fergi.Cli -c Release -- run ...` (the executable is `Fergi.Cli`).
-The `fergi` command name needs the tool packaging that comes with publishing.
+`fergi --version` prints the package version and the commit it was built from.
+
+Install it as a .NET tool (needs the .NET 8 runtime or newer; the package is `Fergi.Tool`, the command is `fergi`):
+
+```
+dotnet tool install --global Fergi.Tool --prerelease     # while the version is 0.1.0-alpha.*
+dotnet tool update --global Fergi.Tool --prerelease
+```
+
+From source: `dotnet run --project src/Fergi.Cli -c Release -- run ...`, or `dotnet pack src/Fergi.Cli -c Release -o out` and
+`dotnet tool install --tool-path tools --add-source out Fergi.Tool --prerelease`.
 
 ## JSONata (optional, .NET only)
 
@@ -302,3 +311,12 @@ dotnet build Fergi.slnx -c Release
 dotnet test Fergi.slnx -c Release
 scripts/fable-test.sh all        # JS (bun) and Python; slow, needs network the first time
 ```
+
+## Releasing
+
+Releases are tag-driven (`.github/workflows/publish-nuget.yml`, NuGet Trusted Publishing, no API key). The
+`Fergi` and `Fergi.Tool` packages share one version, `<Version>` in `Directory.Build.props`.
+`scripts/publish.sh` (interactive; `--dry-run` to rehearse) rolls `CHANGELOG.md`, bumps that version, commits, tags
+`v<version>` and offers to push; the tag push publishes. CI fails if the tag differs from the repo version.
+`scripts/install-alpha.sh` packs and installs a local alpha of the tool for trying it out. The `Fnode*` packages are
+released separately.

@@ -19,6 +19,32 @@ Revisit if: the signals that should reopen it.
 See: files, docs or commits.
 ```
 
+## JSON and YAML libraries are the Flexi.Json and Flexi.Yaml packages, not an in-repo copy
+Date: 2026-10-28. Status: Accepted.
+
+Decision: `Fnode.Json` references the `Flexi.Json` 0.1.0 NuGet package and `Fnode.Yaml` references `Flexi.Yaml` 0.1.0.
+`src/JsonValue` (the in-repo JSON library, placeholder namespace `Fergi.Json`) and `tests/JsonValue.Tests` are deleted, and
+`FSharp.Data.YamlValue` is no longer used. Both packages ship F# sources under `fable/`, so the Fable JS and Python runs
+still compile them from the package.
+
+Why: the JSON library was always meant to be a standalone project, and its final name and the YAML package's rename are
+settled. One copy in its own repository (with its own tests, including the JSON Test Suite) is easier to keep right than
+a copy here that must track it. Fnode only needs the public API (`Parse`, `TryParseWithPositions`, the union cases).
+
+Rejected:
+- **Keeping the in-repo copy (project reference) and publishing it from here**: two homes for the same code, a package
+  that releases on this repo's schedule, and 323 library tests plus the vendored corpus riding along in this repo.
+- **Staying on `FSharp.Data.YamlValue` 0.2.1**: superseded by `Flexi.Yaml`.
+
+Costs: the JSON Test Suite no longer runs in this repo or under our Fable harness (it runs in the `flexi-json` repo). A
+library fix now needs a release before we can use it. Both packages require FSharp.Core 10.1.403, so
+`Directory.Build.props` still pins `FSharpCoreImplicitPackageVersion` (now 10.1.403). `Flexi.Json` and `Flexi.Yaml` both define
+`Pos` and `Span`; no file here opens both.
+
+Revisit if: a package falls behind what Fnode needs, or Fable support in a package breaks.
+
+See: `src/Fnode.Json`, `src/Fnode.Yaml`, `docs/fable.md`.
+
 ## The CLI names its inputs with flags; the last argument is not the output
 Date: 2026-10-22. Status: Accepted.
 
@@ -184,3 +210,50 @@ Revisit if: the portable subset proves too small for the mappings people actuall
 want general-purpose logic that JSONata expresses badly (then add Jint as an opt-in).
 
 See: `docs/jsonata.md`, `tests/jsonata-conformance/`, `src/Fergi.Jsonata/`, commits `2fa0452` and `5657504`.
+
+## The CLI ships as a dotnet tool (`Fergi.Tool`, command `fergi`)
+
+Decided 2026-10-28. `src/Fergi.Cli` is packed with `PackAsTool` as the NuGet package `Fergi.Tool` with the
+command `fergi`. It targets net8.0 and needs the .NET runtime. The published Fergi packages (`Fergi`, `Fergi.Tool`)
+share one version (`FergiVersion` in `Directory.Build.props`, `0.1.0-alpha.1`). `Fergi.Jsonata` is not packable: it is a
+spike with open items (STATUS items 10 to 12, 15, 16), and the tool bundles it, so publishing it would commit to an API
+nobody needs yet. Publish it when a .NET library user wants JSONata in-process.
+`fergi --version` reads the assembly informational version and strips the `+commit` suffix.
+
+Why:
+- It is the smallest step: one property set, `dotnet tool install` for users who already have .NET, no
+  per-platform build matrix, and `eru` already ships this way.
+- The tool package bundles its dependencies, so it works without the core packages being published first.
+- It gives the `fergi` command name without the assembly name clashing with the `Fergi` library.
+
+Rejected:
+- **A self-contained single-file binary first** (about 78 MB, one build per platform, needs a release pipeline
+  with checksums). Still possible later as a GitHub release asset for people without .NET.
+- **Native AOT**: Argu's union reflection fails at runtime even with trimmer roots and an `rd.xml` (tested).
+  Revisit only with a hand-rolled parser and an AOT check of JSONata and the YAML adapter.
+- **A separate version for the CLI**: the CLI and `Fergi` change together, so one number is
+  less to explain. The `Fnode*` packages keep their own.
+
+Revisit if: users without .NET need the CLI (add release binaries), or the CLI needs to version apart from the libraries.
+
+## Releases are tag-driven, one tag for the two Fergi packages
+
+Decided 2026-10-28. A `v<version>` tag publishes `Fergi` and `Fergi.Tool` to NuGet through Trusted
+Publishing (`.github/workflows/publish-nuget.yml`), following the `eru` and `fsharp-yaml` setup. `<Version>` and
+`<PackageReleaseNotes>` live in the first PropertyGroup of `Directory.Build.props` (`FergiVersion` is an alias), where
+`scripts/publish.fsx` rewrites them. The workflow checks the tag against that version and fails on a mismatch.
+
+Why:
+- Check rather than override: `-p:Version=<tag>` is a global property, so it would also replace `Fnode`'s pinned
+  `0.1.0` and make the `Fergi` package depend on a `Fnode` that does not exist.
+- One tag for three packages that change together; the `Fnode*` packages are not packable in this repo, so a tag
+  scheme for them is not needed here.
+- CI runs the Fable and JSONata conformance suites as separate jobs so the quick .NET result is not held up.
+
+Rejected:
+- **Self-contained binaries on a GitHub Release now** (`publish-gh.yml` in the skill): tool first, binaries later.
+- **Per-package tags** (`fergi-tool-v...`): more to explain for one shared version.
+
+Cost: `publish.fsx` and `install-alpha.fsx` carry one small local change each (see STATUS item 21).
+
+Revisit if: the `Fnode*` packages move into this repo's pack set, or users without .NET need binaries.
